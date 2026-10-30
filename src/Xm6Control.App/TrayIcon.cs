@@ -22,6 +22,9 @@ internal sealed class TrayIcon : IDisposable
     private const uint TPM_RETURNCMD = 0x0100;
     private const uint TPM_NONOTIFY = 0x0080;
     private const int IDI_APPLICATION = 32512;
+    private const uint IMAGE_ICON = 1;
+    private const uint LR_LOADFROMFILE = 0x0010;
+    private const uint LR_DEFAULTSIZE = 0x0040;
     private const int ID_OVERVIEW = 1;
     private const int ID_LISTENING = 2;
     private const int ID_EXIT = 3;
@@ -29,6 +32,8 @@ internal sealed class TrayIcon : IDisposable
     private readonly string _className = $"Xm6ControlTray_{Guid.NewGuid():N}";
     private readonly WndProcDelegate _wndProc;
     private IntPtr _window;
+    private IntPtr _iconHandle;
+    private bool _ownsIcon;
     private bool _iconAdded;
 
     public TrayIcon()
@@ -36,6 +41,7 @@ internal sealed class TrayIcon : IDisposable
         _wndProc = WindowProcedure;
         try
         {
+            _iconHandle = LoadTrayIcon();
             CreateMessageWindow();
             AddIcon();
             IsAvailable = _window != IntPtr.Zero && _iconAdded;
@@ -68,7 +74,36 @@ internal sealed class TrayIcon : IDisposable
         }
 
         UnregisterClassW(_className, GetModuleHandleW(null));
+        if (_ownsIcon && _iconHandle != IntPtr.Zero)
+        {
+            DestroyIcon(_iconHandle);
+        }
+
+        _iconHandle = IntPtr.Zero;
+        _ownsIcon = false;
         IsAvailable = false;
+    }
+
+    private IntPtr LoadTrayIcon()
+    {
+        var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "app.ico");
+        if (File.Exists(iconPath))
+        {
+            var handle = LoadImageW(
+                IntPtr.Zero,
+                iconPath,
+                IMAGE_ICON,
+                0,
+                0,
+                LR_LOADFROMFILE | LR_DEFAULTSIZE);
+            if (handle != IntPtr.Zero)
+            {
+                _ownsIcon = true;
+                return handle;
+            }
+        }
+
+        return LoadIconW(IntPtr.Zero, (IntPtr)IDI_APPLICATION);
     }
 
     private void CreateMessageWindow()
@@ -122,7 +157,7 @@ internal sealed class TrayIcon : IDisposable
             uID = 1,
             uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP,
             uCallbackMessage = WM_TRAY,
-            hIcon = LoadIconW(IntPtr.Zero, (IntPtr)IDI_APPLICATION),
+            hIcon = _iconHandle,
             szTip = "XM6 Control",
             szInfo = string.Empty,
             szInfoTitle = string.Empty,
@@ -289,6 +324,18 @@ internal sealed class TrayIcon : IDisposable
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern IntPtr LoadIconW(IntPtr instance, IntPtr iconName);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern IntPtr LoadImageW(
+        IntPtr instance,
+        string name,
+        uint type,
+        int width,
+        int height,
+        uint flags);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool DestroyIcon(IntPtr icon);
 
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr hWnd);

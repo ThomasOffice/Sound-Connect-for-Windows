@@ -73,6 +73,18 @@ public sealed partial class MainWindow : Window
         InitializeComponent();
         SystemBackdrop = new MicaBackdrop();
         Title = "XM6 Control";
+        var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "app.ico");
+        if (File.Exists(iconPath))
+        {
+            try
+            {
+                AppWindow.SetIcon(iconPath);
+            }
+            catch
+            {
+                // The exe icon still applies if the title-bar icon cannot be set.
+            }
+        }
         AmbientLevelSlider.Minimum = 1;
         AmbientLevelSlider.Maximum = 20;
         AmbientLevelSlider.StepFrequency = 1;
