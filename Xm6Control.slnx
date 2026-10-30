@@ -1,0 +1,16 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Xm6Control.App/Xm6Control.App.csproj">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="src/Xm6Control.Bluetooth.Windows/Xm6Control.Bluetooth.Windows.csproj" />
+    <Project Path="src/Xm6Control.Cli/Xm6Control.Cli.csproj" />
+    <Project Path="src/Xm6Control.Core/Xm6Control.Core.csproj" />
+    <Project Path="src/Xm6Control.Protocol/Xm6Control.Protocol.csproj" />
+    <Project Path="src/Xm6Control.Xm6/Xm6Control.Xm6.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Xm6Control.Bluetooth.Windows.Tests/Xm6Control.Bluetooth.Windows.Tests.csproj" />
+    <Project Path="tests/Xm6Control.Protocol.Tests/Xm6Control.Protocol.Tests.csproj" />
+  </Folder>
+</Solution>

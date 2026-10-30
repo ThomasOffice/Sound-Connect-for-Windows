@@ -1,0 +1,18 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Xm6Control.Protocol\Xm6Control.Protocol.csproj" />
+    <ProjectReference Include="..\Xm6Control.Bluetooth.Windows\Xm6Control.Bluetooth.Windows.csproj" />
+    <ProjectReference Include="..\Xm6Control.Core\Xm6Control.Core.csproj" />
+    <ProjectReference Include="..\Xm6Control.Xm6\Xm6Control.Xm6.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.22621.0</SupportedOSPlatformVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>
