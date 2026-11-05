@@ -4,9 +4,10 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:loc="using:Xm6Control.App"
     mc:Ignorable="d">
 
-    <Grid>
+    <Grid x:Name="RootGrid">
         <NavigationView
             x:Name="Nav"
             PaneDisplayMode="Left"
@@ -16,14 +17,15 @@
             SelectionChanged="Navigation_SelectionChanged">
 
             <NavigationView.MenuItems>
-                <NavigationViewItem x:Name="OverviewNav" Content="概览" Tag="overview" Icon="Home" IsSelected="True" />
-                <NavigationViewItem Content="环境声音控制" Tag="noise" Icon="Audio" />
-                <NavigationViewItem Content="均衡器" Tag="eq" Icon="Audio" />
-                <NavigationViewItem Content="聆听模式" Tag="listening" Icon="Audio" />
-                <NavigationViewItem Content="多点连接" Tag="multipoint" />
-                <NavigationViewItem Content="自动关机" Tag="autopower" />
-                <NavigationViewItem Content="关闭行为" Tag="closebehavior" Icon="Setting" />
-                <NavigationViewItem Content="关于" Tag="about" Icon="Help" />
+                <NavigationViewItem x:Name="OverviewNav" loc:Loc.Content="nav.overview" Tag="overview" Icon="Home" IsSelected="True" />
+                <NavigationViewItem loc:Loc.Content="nav.noise" Tag="noise" Icon="Audio" />
+                <NavigationViewItem loc:Loc.Content="nav.eq" Tag="eq" Icon="Audio" />
+                <NavigationViewItem loc:Loc.Content="nav.listening" Tag="listening" Icon="Audio" />
+                <NavigationViewItem loc:Loc.Content="nav.multipoint" Tag="multipoint" />
+                <NavigationViewItem loc:Loc.Content="nav.autopower" Tag="autopower" />
+                <NavigationViewItem loc:Loc.Content="nav.scenes" Tag="scenes" />
+                <NavigationViewItem loc:Loc.Content="nav.settings" Tag="settings" Icon="Setting" />
+                <NavigationViewItem loc:Loc.Content="nav.about" Tag="about" Icon="Help" />
             </NavigationView.MenuItems>
 
             <ScrollViewer HorizontalScrollBarVisibility="Auto"
@@ -34,8 +36,8 @@
                     <InfoBar x:Name="StatusBar" IsOpen="False" IsClosable="True" />
 
                     <StackPanel x:Name="OverviewSection" Spacing="16">
-                        <TextBlock Text="概览" Style="{StaticResource TitleTextBlockStyle}" />
-                        <TextBlock Text="Sony WH-1000XM6 的本机控制面板" Style="{StaticResource BodyTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <TextBlock loc:Loc.Text="page.overview.title" Style="{StaticResource TitleTextBlockStyle}" />
+                        <TextBlock loc:Loc.Text="page.overview.subtitle" Style="{StaticResource BodyTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
 
                         <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
@@ -52,212 +54,343 @@
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
 
-                                <TextBlock Grid.Row="0" Grid.Column="0" Text="设备" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock Grid.Row="0" Grid.Column="0" loc:Loc.Text="overview.device" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 <TextBlock Grid.Row="0" Grid.Column="1" x:Name="DeviceNameText" Text="WH-1000XM6" Style="{StaticResource BodyStrongTextBlockStyle}" />
 
-                                <TextBlock Grid.Row="1" Grid.Column="0" Text="固件" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                <TextBlock Grid.Row="1" Grid.Column="1" x:Name="FirmwareText" Text="未读取" />
+                                <TextBlock Grid.Row="1" Grid.Column="0" loc:Loc.Text="overview.firmware" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock Grid.Row="1" Grid.Column="1" x:Name="FirmwareText" loc:Loc.Text="overview.unknown" />
 
-                                <TextBlock Grid.Row="2" Grid.Column="0" Text="电量" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                <TextBlock Grid.Row="2" Grid.Column="1" x:Name="BatteryText" Text="未读取" />
+                                <TextBlock Grid.Row="2" Grid.Column="0" loc:Loc.Text="overview.battery" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock Grid.Row="2" Grid.Column="1" x:Name="BatteryText" loc:Loc.Text="overview.unknown" />
 
-                                <TextBlock Grid.Row="3" Grid.Column="0" Text="连接" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                <TextBlock Grid.Row="3" Grid.Column="1" x:Name="ConnectionText" Text="未连接" />
+                                <TextBlock Grid.Row="3" Grid.Column="0" loc:Loc.Text="overview.connection" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock Grid.Row="3" Grid.Column="1" x:Name="ConnectionText" loc:Loc.Text="overview.disconnected" />
                             </Grid>
                         </Border>
 
                         <StackPanel Orientation="Horizontal" Spacing="10">
-                            <Button x:Name="RefreshButton" Content="刷新状态" Click="Refresh_Click" />
+                            <Button x:Name="RefreshButton" loc:Loc.Content="overview.refresh" Click="Refresh_Click" />
                             <TextBlock x:Name="LastUpdatedText" VerticalAlignment="Center"
                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         </StackPanel>
                     </StackPanel>
 
                     <StackPanel x:Name="NoiseSection" Spacing="16" Visibility="Collapsed">
-                        <TextBlock Text="环境声音控制" Style="{StaticResource TitleTextBlockStyle}" />
-                        <TextBlock Text="当前状态会先读取，再写入，并回读确认。" Style="{StaticResource BodyTextBlockStyle}"
+                        <TextBlock loc:Loc.Text="page.noise.title" Style="{StaticResource TitleTextBlockStyle}" />
+                        <TextBlock loc:Loc.Text="page.noise.subtitle" Style="{StaticResource BodyTextBlockStyle}"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
 
                         <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                 BorderThickness="1" CornerRadius="8" Padding="18">
                             <StackPanel Spacing="14">
-                                <TextBlock x:Name="NoiseCurrentText" Text="当前模式：未读取" TextWrapping="Wrap" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                <TextBlock x:Name="NoiseCurrentText" loc:Loc.Text="common.current.mode" TextWrapping="Wrap" Style="{StaticResource BodyStrongTextBlockStyle}" />
 
-                                <RadioButtons x:Name="NoiseModeRadio" Header="模式"
+                                <RadioButtons x:Name="NoiseModeRadio" loc:Loc.Header="common.mode"
                                               SelectionChanged="NoiseModeRadio_SelectionChanged">
-                                    <RadioButton Content="降噪" Tag="nc" />
-                                    <RadioButton Content="环境声" Tag="asm" />
-                                    <RadioButton Content="关闭" Tag="off" />
+                                    <RadioButton loc:Loc.Content="noise.mode.nc" Tag="nc" />
+                                    <RadioButton loc:Loc.Content="noise.mode.asm" Tag="asm" />
+                                    <RadioButton loc:Loc.Content="noise.mode.off" Tag="off" />
                                 </RadioButtons>
 
                                 <StackPanel x:Name="AmbientControls" Spacing="12">
-                                    <Slider x:Name="AmbientLevelSlider" Header="环境声等级"
+                                    <Slider x:Name="AmbientLevelSlider" loc:Loc.Header="noise.level"
                                             ValueChanged="AmbientLevelSlider_ValueChanged" />
                                     <TextBlock x:Name="AmbientLevelText" Text="20" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
 
-                                    <ToggleSwitch x:Name="NoiseAdaptiveToggle" Header="自动环境声音"
-                                                  OnContent="开启" OffContent="关闭"
+                                    <ToggleSwitch x:Name="NoiseAdaptiveToggle" loc:Loc.Header="noise.adaptive"
+                                                  loc:Loc.OnContent="toggle.on" loc:Loc.OffContent="toggle.off"
                                                   Toggled="NoiseAdaptiveToggle_Toggled" />
-                                    <ComboBox x:Name="NoiseAdaptiveSensitivityCombo" Header="灵敏度"
+                                    <ComboBox x:Name="NoiseAdaptiveSensitivityCombo" loc:Loc.Header="noise.sensitivity"
                                               Width="220" DisplayMemberPath="Label" />
 
-                                    <ToggleSwitch x:Name="VoiceFocusToggle" Header="关注语音"
-                                                  OnContent="开启" OffContent="关闭" />
+                                    <ToggleSwitch x:Name="VoiceFocusToggle" loc:Loc.Header="noise.voicefocus"
+                                                  loc:Loc.OnContent="toggle.on" loc:Loc.OffContent="toggle.off" />
                                 </StackPanel>
 
-                                <Button x:Name="ApplyNoiseButton" Content="应用并回读" Click="ApplyNoise_Click" />
+                                <Button x:Name="ApplyNoiseButton" loc:Loc.Content="button.apply.verify" Click="ApplyNoise_Click" />
                             </StackPanel>
                         </Border>
                     </StackPanel>
 
                     <StackPanel x:Name="EqSection" Spacing="16" Visibility="Collapsed">
-                        <TextBlock Text="均衡器" Style="{StaticResource TitleTextBlockStyle}" />
-                        <TextBlock Text="当前预设和 10 段频段值来自耳机；写入后会重新读取确认。" Style="{StaticResource BodyTextBlockStyle}"
+                        <TextBlock loc:Loc.Text="page.eq.title" Style="{StaticResource TitleTextBlockStyle}" />
+                        <TextBlock loc:Loc.Text="page.eq.subtitle" Style="{StaticResource BodyTextBlockStyle}"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
 
                         <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                 BorderThickness="1" CornerRadius="8" Padding="18">
                             <StackPanel Spacing="14">
-                                <TextBlock x:Name="EqCurrentText" Text="当前 EQ：未读取" TextWrapping="Wrap" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                                <ComboBox x:Name="EqPresetCombo" Header="预设" Width="260"
+                                <TextBlock x:Name="EqCurrentText" loc:Loc.Text="common.current.eq" TextWrapping="Wrap" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                <ComboBox x:Name="EqPresetCombo" loc:Loc.Header="eq.preset" Width="260"
                                           SelectionChanged="EqPresetCombo_SelectionChanged" />
 
                                 <StackPanel x:Name="EqBandsPanel" Spacing="4" />
-                                <Button x:Name="ApplyEqButton" Content="应用并回读" Click="ApplyEq_Click" />
+                                <Button x:Name="ApplyEqButton" loc:Loc.Content="button.apply.verify" Click="ApplyEq_Click" />
                             </StackPanel>
                         </Border>
                     </StackPanel>
 
                     <StackPanel x:Name="ListeningSection" Spacing="16" Visibility="Collapsed">
-                        <TextBlock Text="聆听模式" Style="{StaticResource TitleTextBlockStyle}" />
-                        <TextBlock Text="标准模式使用当前 EQ；背景音乐和电影会启用耳机音效。" Style="{StaticResource BodyTextBlockStyle}"
+                        <TextBlock loc:Loc.Text="page.listening.title" Style="{StaticResource TitleTextBlockStyle}" />
+                        <TextBlock loc:Loc.Text="page.listening.subtitle" Style="{StaticResource BodyTextBlockStyle}"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
 
                         <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                 BorderThickness="1" CornerRadius="8" Padding="18">
                             <StackPanel Spacing="14">
-                                <TextBlock x:Name="ListeningCurrentText" Text="当前模式：未读取"
+                                <TextBlock x:Name="ListeningCurrentText" loc:Loc.Text="common.current.mode"
                                            TextWrapping="Wrap" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                                <TextBlock x:Name="ListeningEqText" Text="当前 EQ：未读取"
+                                <TextBlock x:Name="ListeningEqText" loc:Loc.Text="common.current.eq"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
 
-                                <RadioButtons x:Name="ListeningModeRadio" Header="模式"
+                                <RadioButtons x:Name="ListeningModeRadio" loc:Loc.Header="common.mode"
                                               SelectionChanged="ListeningModeRadio_SelectionChanged">
-                                    <RadioButton Content="标准（使用 EQ）" Tag="standard" />
-                                    <RadioButton Content="背景音乐" Tag="bgm" />
-                                    <RadioButton Content="电影" Tag="cinema" />
+                                    <RadioButton loc:Loc.Content="listening.mode.standard" Tag="standard" />
+                                    <RadioButton loc:Loc.Content="listening.mode.bgm" Tag="bgm" />
+                                    <RadioButton loc:Loc.Content="listening.mode.cinema" Tag="cinema" />
                                 </RadioButtons>
 
-                                <ComboBox x:Name="BgmRoomCombo" Header="背景音乐距离"
+                                <ComboBox x:Name="BgmRoomCombo" loc:Loc.Header="listening.room"
                                           Width="260" DisplayMemberPath="Label" />
 
                                 <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <Button x:Name="ApplyListeningButton" Content="应用并回读"
+                                    <Button x:Name="ApplyListeningButton" loc:Loc.Content="button.apply.verify"
                                             Click="ApplyListening_Click" />
-                                    <Button Content="刷新状态" Click="Refresh_Click" />
+                                    <Button loc:Loc.Content="overview.refresh" Click="Refresh_Click" />
                                 </StackPanel>
 
                                 <TextBlock TextWrapping="Wrap"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                           Text="说明：背景音乐的距离对应我的房间、客厅、咖啡馆。切换到标准会关闭 BGM / 电影音效，并恢复当前 EQ 设置。" />
+                                           loc:Loc.Text="listening.hint" />
                             </StackPanel>
                         </Border>
                     </StackPanel>
 
                     <StackPanel x:Name="MultipointSection" Spacing="16" Visibility="Collapsed">
-                        <TextBlock Text="多点连接" Style="{StaticResource TitleTextBlockStyle}" />
-                        <TextBlock Text="允许耳机同时连接两台设备；关闭后第二台设备会断开。" Style="{StaticResource BodyTextBlockStyle}"
+                        <TextBlock loc:Loc.Text="page.multipoint.title" Style="{StaticResource TitleTextBlockStyle}" />
+                        <TextBlock loc:Loc.Text="page.multipoint.subtitle" Style="{StaticResource BodyTextBlockStyle}"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
 
                         <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                 BorderThickness="1" CornerRadius="8" Padding="18">
                             <StackPanel Spacing="14">
-                                <TextBlock x:Name="MultipointStateText" Text="当前状态：未读取"
+                                <TextBlock x:Name="MultipointStateText" loc:Loc.Text="common.current.state"
                                            TextWrapping="Wrap" Style="{StaticResource BodyStrongTextBlockStyle}" />
 
-                                <ToggleSwitch x:Name="MultipointToggle" Header="多点连接"
-                                              OnContent="开启" OffContent="关闭" />
+                                <ToggleSwitch x:Name="MultipointToggle" loc:Loc.Header="multipoint.label"
+                                              loc:Loc.OnContent="toggle.on" loc:Loc.OffContent="toggle.off" />
 
                                 <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <Button x:Name="ApplyMultipointButton" Content="应用并回读"
+                                    <Button x:Name="ApplyMultipointButton" loc:Loc.Content="button.apply.verify"
                                             Click="ApplyMultipoint_Click" />
-                                    <Button Content="刷新状态" Click="Refresh_Click" />
+                                    <Button loc:Loc.Content="overview.refresh" Click="Refresh_Click" />
                                 </StackPanel>
 
                                 <TextBlock TextWrapping="Wrap"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                           Text="说明：耳机端没有公开设备列表/主动切换命令。此处控制多点连接开关；在手机与电脑之间切换音频源由耳机和当前播放设备自动完成。若耳机正在使用 LDAC，关闭多点连接可能被拒绝。" />
+                                           loc:Loc.Text="multipoint.hint" />
                             </StackPanel>
                         </Border>
                     </StackPanel>
 
                     <StackPanel x:Name="AutoPowerSection" Spacing="16" Visibility="Collapsed">
-                        <TextBlock Text="自动关机" Style="{StaticResource TitleTextBlockStyle}" />
-                        <TextBlock Text="设置取下耳机后自动关机，或关闭自动关机。" Style="{StaticResource BodyTextBlockStyle}"
+                        <TextBlock loc:Loc.Text="page.autopower.title" Style="{StaticResource TitleTextBlockStyle}" />
+                        <TextBlock loc:Loc.Text="page.autopower.subtitle" Style="{StaticResource BodyTextBlockStyle}"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
 
                         <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                 BorderThickness="1" CornerRadius="8" Padding="18">
                             <StackPanel Spacing="14">
-                                <TextBlock x:Name="AutoPowerStateText" Text="当前状态：未读取"
+                                <TextBlock x:Name="AutoPowerStateText" loc:Loc.Text="common.current.state"
                                            TextWrapping="Wrap" Style="{StaticResource BodyStrongTextBlockStyle}" />
 
-                                <ComboBox x:Name="AutoPowerCombo" Header="自动关机"
+                                <ComboBox x:Name="AutoPowerCombo" loc:Loc.Header="autopower.label"
                                           Width="260" DisplayMemberPath="Label" />
 
                                 <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <Button x:Name="ApplyAutoPowerButton" Content="应用并回读"
+                                    <Button x:Name="ApplyAutoPowerButton" loc:Loc.Content="button.apply.verify"
                                             Click="ApplyAutoPower_Click" />
-                                    <Button Content="刷新状态" Click="Refresh_Click" />
+                                    <Button loc:Loc.Content="overview.refresh" Click="Refresh_Click" />
                                 </StackPanel>
 
                                 <TextBlock TextWrapping="Wrap"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                           Text="说明：自动关机只有“取下耳机后”和“关闭”两种状态。" />
+                                           loc:Loc.Text="autopower.hint" />
                             </StackPanel>
                         </Border>
                     </StackPanel>
 
-                    <StackPanel x:Name="CloseBehaviorSection" Spacing="16" Visibility="Collapsed">
-                        <TextBlock Text="关闭行为" Style="{StaticResource TitleTextBlockStyle}" />
-                        <TextBlock Text="选择点击窗口关闭按钮时的行为。" Style="{StaticResource BodyTextBlockStyle}"
+                    <StackPanel x:Name="ScenesSection" Spacing="16" Visibility="Collapsed">
+                        <TextBlock loc:Loc.Text="page.scenes.title" Style="{StaticResource TitleTextBlockStyle}" />
+                        <TextBlock loc:Loc.Text="page.scenes.subtitle"
+                                   Style="{StaticResource BodyTextBlockStyle}"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+
+                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1" CornerRadius="8" Padding="18">
+                            <StackPanel Spacing="12">
+                                <TextBlock loc:Loc.Text="scenes.new" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                <TextBox x:Name="SceneNameBox" loc:Loc.Header="scenes.name" Width="360"
+                                         loc:Loc.Placeholder="scenes.name.placeholder" />
+                                <Button x:Name="CaptureSceneButton" loc:Loc.Content="scenes.capture"
+                                        Click="CaptureScene_Click" />
+                                <TextBlock TextWrapping="Wrap"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           loc:Loc.Text="scenes.capture.hint" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1" CornerRadius="8" Padding="18">
+                            <StackPanel Spacing="10">
+                                <TextBlock loc:Loc.Text="scenes.saved" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                <TextBlock x:Name="NoScenesText" loc:Loc.Text="scenes.empty"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <StackPanel x:Name="SceneListPanel" Spacing="8" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <StackPanel x:Name="SettingsSection" Spacing="16" Visibility="Collapsed">
+                        <TextBlock loc:Loc.Text="page.settings.title" Style="{StaticResource TitleTextBlockStyle}" />
+                        <TextBlock loc:Loc.Text="page.settings.subtitle"
+                                   Style="{StaticResource BodyTextBlockStyle}"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
 
                         <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                 BorderThickness="1" CornerRadius="8" Padding="18">
                             <StackPanel Spacing="14">
-                                <RadioButtons x:Name="CloseBehaviorRadio"
-                                              SelectionChanged="CloseBehaviorRadio_SelectionChanged">
-                                    <RadioButton Content="直接关闭应用" Tag="close" />
-                                    <RadioButton Content="隐藏到系统托盘" Tag="tray" />
-                                </RadioButtons>
-
+                                <TextBlock loc:Loc.Text="settings.startup" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                <ToggleSwitch x:Name="LaunchOnStartupToggle" loc:Loc.Header="settings.launch"
+                                              loc:Loc.OnContent="toggle.on" loc:Loc.OffContent="toggle.off"
+                                              Toggled="SettingsToggle_Changed" />
+                                <ToggleSwitch x:Name="StartMinimizedToggle" loc:Loc.Header="settings.startminimized"
+                                              loc:Loc.OnContent="toggle.on" loc:Loc.OffContent="toggle.off"
+                                              Toggled="SettingsToggle_Changed" />
+                                <ToggleSwitch x:Name="RefreshOnStartToggle" loc:Loc.Header="settings.refreshonstart"
+                                              loc:Loc.OnContent="toggle.on" loc:Loc.OffContent="toggle.off"
+                                              Toggled="SettingsToggle_Changed" />
                                 <TextBlock TextWrapping="Wrap"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                           Text="隐藏后，可从系统托盘菜单打开“概览”或“聆听模式”，也可以从托盘退出应用。" />
+                                           loc:Loc.Text="settings.startup.hint" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1" CornerRadius="8" Padding="18">
+                            <StackPanel Spacing="14">
+                                <TextBlock loc:Loc.Text="settings.window" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                <ToggleSwitch x:Name="RememberWindowToggle" loc:Loc.Header="settings.rememberwindow"
+                                              loc:Loc.OnContent="toggle.on" loc:Loc.OffContent="toggle.off"
+                                              Toggled="SettingsToggle_Changed" />
+                                <TextBlock x:Name="LastSectionText" TextWrapping="Wrap"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1" CornerRadius="8" Padding="18">
+                            <StackPanel Spacing="14">
+                                <TextBlock loc:Loc.Text="settings.appearance" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                <ComboBox x:Name="ThemeCombo" loc:Loc.Header="settings.theme" Width="260"
+                                          DisplayMemberPath="Label"
+                                          SelectionChanged="SettingsSelection_Changed" />
+                                <ComboBox x:Name="BackdropCombo" loc:Loc.Header="settings.backdrop" Width="260"
+                                          DisplayMemberPath="Label"
+                                          SelectionChanged="SettingsSelection_Changed" />
+                                <ComboBox x:Name="LanguageCombo" loc:Loc.Header="settings.language" Width="260"
+                                          DisplayMemberPath="Label"
+                                          SelectionChanged="SettingsSelection_Changed" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1" CornerRadius="8" Padding="18">
+                            <StackPanel Spacing="14">
+                                <TextBlock loc:Loc.Text="settings.tray" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                <ToggleSwitch x:Name="TrayShowStatusToggle" loc:Loc.Header="settings.tray.showstatus"
+                                              loc:Loc.OnContent="toggle.on" loc:Loc.OffContent="toggle.off"
+                                              Toggled="SettingsToggle_Changed" />
+                                <ComboBox x:Name="TrayClickCombo" loc:Loc.Header="settings.tray.click" Width="260"
+                                          DisplayMemberPath="Label"
+                                          SelectionChanged="SettingsSelection_Changed" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1" CornerRadius="8" Padding="18">
+                            <StackPanel Spacing="14">
+                                <TextBlock loc:Loc.Text="settings.refresh" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                <ComboBox x:Name="AutoRefreshCombo" loc:Loc.Header="settings.autorefresh" Width="260"
+                                          DisplayMemberPath="Label"
+                                          SelectionChanged="SettingsSelection_Changed" />
+                                <ToggleSwitch x:Name="AutoReconnectToggle" loc:Loc.Header="settings.autoreconnect"
+                                              loc:Loc.OnContent="toggle.on" loc:Loc.OffContent="toggle.off"
+                                              Toggled="SettingsToggle_Changed" />
+                                <TextBlock TextWrapping="Wrap"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           loc:Loc.Text="settings.refresh.hint" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1" CornerRadius="8" Padding="18">
+                            <StackPanel Spacing="14">
+                                <TextBlock loc:Loc.Text="settings.device" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                <TextBox x:Name="DeviceNameBox" loc:Loc.Header="settings.device.name" Width="360"
+                                         LostFocus="SettingsText_LostFocus" />
+                                <TextBox x:Name="DeviceAddressBox" loc:Loc.Header="settings.device.address" Width="360"
+                                         PlaceholderText="AA:BB:CC:DD:EE:FF"
+                                         LostFocus="SettingsText_LostFocus" />
+                                <TextBlock TextWrapping="Wrap"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           loc:Loc.Text="settings.device.hint" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1" CornerRadius="8" Padding="18">
+                            <StackPanel Spacing="14">
+                                <TextBlock loc:Loc.Text="settings.close" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                <RadioButtons x:Name="CloseBehaviorRadio"
+                                              SelectionChanged="SettingsSelection_Changed">
+                                    <RadioButton loc:Loc.Content="settings.close.direct" Tag="close" />
+                                    <RadioButton loc:Loc.Content="settings.close.tray" Tag="tray" />
+                                </RadioButtons>
+                                <TextBlock TextWrapping="Wrap"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           loc:Loc.Text="settings.close.hint" />
                             </StackPanel>
                         </Border>
                     </StackPanel>
 
                     <StackPanel x:Name="AboutSection" Spacing="16" Visibility="Collapsed">
-                        <TextBlock Text="关于" Style="{StaticResource TitleTextBlockStyle}" />
+                        <TextBlock loc:Loc.Text="page.about.title" Style="{StaticResource TitleTextBlockStyle}" />
                         <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                 BorderThickness="1" CornerRadius="8" Padding="18">
                             <StackPanel Spacing="10">
-                                <TextBlock Text="XM6 Control" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                                <TextBlock Text="版本 1.0.0" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock loc:Loc.Text="about.name" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                <TextBlock loc:Loc.Text="about.version" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 <TextBlock TextWrapping="Wrap"
-                                           Text="本机 Sony WH-1000XM6 控制工具，支持环境声音控制（降噪/环境声/关闭、自动环境声音、关注语音）、均衡器、聆听模式、多点连接、自动关机和系统托盘。" />
-                                <TextBlock Text="LE Tandem 控制通道；不使用云服务，不上传设备数据。"
+                                           loc:Loc.Text="about.body" />
+                                <TextBlock loc:Loc.Text="about.local"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                <TextBlock Text="功能和源码：" />
+                                <TextBlock loc:Loc.Text="about.links" />
                                 <HyperlinkButton Content="GitHub - ThomasOffice/Sound-Connect-for-Windows"
                                                  NavigateUri="https://github.com/ThomasOffice/Sound-Connect-for-Windows" />
                             </StackPanel>

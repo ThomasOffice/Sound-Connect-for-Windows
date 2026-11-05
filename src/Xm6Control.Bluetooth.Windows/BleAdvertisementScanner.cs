@@ -31,9 +31,11 @@ public sealed class BleAdvertisementScanner
             }
         };
 
+        var started = false;
         try
         {
             watcher.Start();
+            started = true;
             await Task.Delay(duration, cancellationToken);
         }
         catch (OperationCanceledException)
@@ -42,7 +44,10 @@ public sealed class BleAdvertisementScanner
         }
         finally
         {
-            watcher.Stop();
+            if (started)
+            {
+                watcher.Stop();
+            }
         }
 
         report.CompletedAt = DateTimeOffset.Now;

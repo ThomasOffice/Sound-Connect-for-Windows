@@ -2,7 +2,7 @@ using Xm6Control.Protocol;
 
 namespace Xm6Control.Bluetooth.Windows;
 
-public sealed class ProbeRequest
+public sealed record ProbeRequest
 {
     public string Name { get; init; } = "WH-1000XM6";
     public string? Address { get; init; }
@@ -12,6 +12,8 @@ public sealed class ProbeRequest
     public bool BootstrapTandem { get; init; }
     public bool QueryFeatures { get; init; }
     public bool QuerySnapshot { get; init; }
+    public bool CollectServices { get; init; } = true;
+    public bool CollectDiagnostics { get; init; } = true;
     public bool ApplyEq { get; init; }
     public TandemEqPresetId? EqPreset { get; init; }
     public IReadOnlyList<byte>? EqBands { get; init; }
@@ -30,6 +32,8 @@ public sealed class ProbeRequest
     public bool ApplyListeningMode { get; init; }
     public TandemListeningMode? ListeningMode { get; init; }
     public TandemRoomSize? BgmRoomSize { get; init; }
+    public bool ApplyScene { get; init; }
+    public TandemSceneDefinition? Scene { get; init; }
 }
 
 public sealed class ProbeReport

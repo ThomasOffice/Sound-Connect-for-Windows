@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Xm6Control.Core;
 
 namespace Xm6Control.App;
 
@@ -12,6 +13,7 @@ internal sealed class TrayIcon : IDisposable
     private const int WM_RBUTTONUP = 0x0205;
     private const int WM_CONTEXTMENU = 0x007B;
     private const uint NIM_ADD = 0;
+    private const uint NIM_MODIFY = 1;
     private const uint NIM_DELETE = 2;
     private const uint NIF_MESSAGE = 1;
     private const uint NIF_ICON = 2;
@@ -28,6 +30,8 @@ internal sealed class TrayIcon : IDisposable
     private const int ID_OVERVIEW = 1;
     private const int ID_LISTENING = 2;
     private const int ID_EXIT = 3;
+    private const int ID_NOISE = 4;
+    private const int ID_EQ = 5;
 
     private readonly string _className = $"Xm6ControlTray_{Guid.NewGuid():N}";
     private readonly WndProcDelegate _wndProc;
@@ -53,10 +57,33 @@ internal sealed class TrayIcon : IDisposable
     }
 
     public event Action? OverviewRequested;
+    public event Action? NoiseRequested;
+    public event Action? EqRequested;
     public event Action? ListeningRequested;
     public event Action? ExitRequested;
 
     public bool IsAvailable { get; private set; }
+
+    /// <summary>What a single left click does. Double click always opens the window.</summary>
+    public TrayClickAction ClickAction { get; set; } = TrayClickAction.OpenWindow;
+
+    public void SetClickAction(TrayClickAction action)
+    {
+        ClickAction = action;
+    }
+
+    public void UpdateTooltip(string text)
+    {
+        if (!_iconAdded || _window == IntPtr.Zero)
+        {
+            return;
+        }
+
+        var data = CreateIconData();
+        data.uFlags = NIF_TIP;
+        data.szTip = text.Length > 127 ? text[..127] : text;
+        Shell_NotifyIconW(NIM_MODIFY, ref data);
+    }
 
     public void Dispose()
     {
@@ -172,6 +199,16 @@ internal sealed class TrayIcon : IDisposable
             switch (mouseMessage)
             {
                 case WM_LBUTTONUP:
+                    if (ClickAction == TrayClickAction.ShowMenu)
+                    {
+                        ShowContextMenu();
+                    }
+                    else
+                    {
+                        OverviewRequested?.Invoke();
+                    }
+
+                    return IntPtr.Zero;
                 case WM_LBUTTONDBLCLK:
                     OverviewRequested?.Invoke();
                     return IntPtr.Zero;
@@ -201,10 +238,12 @@ internal sealed class TrayIcon : IDisposable
 
         try
         {
-            AppendMenuW(menu, MF_STRING, ID_OVERVIEW, "概览");
-            AppendMenuW(menu, MF_STRING, ID_LISTENING, "聆听模式");
+            AppendMenuW(menu, MF_STRING, ID_OVERVIEW, Localization.Text("tray.overview"));
+            AppendMenuW(menu, MF_STRING, ID_NOISE, Localization.Text("tray.noise"));
+            AppendMenuW(menu, MF_STRING, ID_EQ, Localization.Text("tray.eq"));
+            AppendMenuW(menu, MF_STRING, ID_LISTENING, Localization.Text("tray.listening"));
             AppendMenuW(menu, MF_SEPARATOR, 0, null);
-            AppendMenuW(menu, MF_STRING, ID_EXIT, "退出");
+            AppendMenuW(menu, MF_STRING, ID_EXIT, Localization.Text("tray.exit"));
 
             GetCursorPos(out var point);
             SetForegroundWindow(_window);
@@ -233,6 +272,12 @@ internal sealed class TrayIcon : IDisposable
                 break;
             case ID_LISTENING:
                 ListeningRequested?.Invoke();
+                break;
+            case ID_NOISE:
+                NoiseRequested?.Invoke();
+                break;
+            case ID_EQ:
+                EqRequested?.Invoke();
                 break;
             case ID_EXIT:
                 ExitRequested?.Invoke();

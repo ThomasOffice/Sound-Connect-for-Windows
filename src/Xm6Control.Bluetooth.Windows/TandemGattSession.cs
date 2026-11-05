@@ -19,18 +19,25 @@ public sealed class TandemGattSession
     private static readonly Guid FromAccUuid = Guid.Parse("5b833c61-6bc7-4802-8e9a-723ceca4bd8f");
     private static readonly Guid WritableLengthUuid = Guid.Parse("5b833c91-6bc7-4802-8e9a-723ceca4bd8f");
     private static readonly Guid DetermineMtuUuid = Guid.Parse("5b833c93-6bc7-4802-8e9a-723ceca4bd8f");
+    private const int DeviceUnavailableHResult = unchecked((int)0x800710DF);
 
     private readonly object _frameGate = new();
     private readonly List<byte> _receiveBuffer = [];
     private readonly object _pendingGate = new();
+    private readonly List<GattDeviceService> _discoveredServices = [];
+    private static string? _cachedDeviceId;
     private TaskCompletionSource<TandemFrame>? _pending;
     private TaskCompletionSource<byte>? _ackPending;
     private HashSet<byte>? _pendingCommands;
     private TaskCompletionSource<byte[]>? _mtuPending;
     private BluetoothLEDevice? _device;
+    private GattSession? _gattSession;
+    private TypedEventHandler<GattSession, GattSessionStatusChangedEventArgs>? _gattSessionHandler;
     private GattDeviceService? _service;
     private GattCharacteristic? _toAcc;
     private GattCharacteristic? _fromAcc;
+    private TandemHandshakeInfo? _handshake;
+    private bool _connected;
     private byte _sequence;
     private TandemSessionReport? _report;
     private TandemGsInquiredType? _multipointGsType;
@@ -53,62 +60,97 @@ public sealed class TandemGattSession
         {
             StartedAt = DateTimeOffset.Now,
         };
-        _report = report;
 
+        await ConnectAsync(request, report, cancellationToken);
+        if (IsConnected)
+        {
+            await ExecuteAsync(request, report, cancellationToken);
+        }
+        else if (report.Status == "unknown")
+        {
+            report.Status = "connect_failed";
+            report.Message = "The Tandem session could not be established.";
+        }
+
+        Disconnect(report);
+        report.CompletedAt = DateTimeOffset.Now;
+        return report;
+    }
+
+    public bool IsConnected =>
+        _connected && _device is not null && _toAcc is not null && _fromAcc is not null;
+
+    /// <summary>
+    /// Opens the device, discovers Tandem, and completes the protocol handshake.
+    /// The connection stays open until <see cref="Disconnect"/> is called.
+    /// </summary>
+    public async Task ConnectAsync(
+        ProbeRequest request,
+        TandemSessionReport report,
+        CancellationToken cancellationToken = default)
+    {
+        _report = report;
         try
         {
-            _device = await OpenDeviceAsync(request, report, cancellationToken);
-            if (_device is null)
+            await ConnectCoreAsync(request, report, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            CaptureException(report, ex);
+            _connected = false;
+        }
+    }
+
+    private async Task ConnectCoreAsync(
+        ProbeRequest request,
+        TandemSessionReport report,
+        CancellationToken cancellationToken)
+    {
+        _device = await OpenDeviceAsync(request, report, cancellationToken);
+        if (_device is null)
+        {
+            report.Status = "not_found";
+            report.Message = "No BLE device could be opened.";
+            return;
+        }
+
+        report.DeviceName = _device.Name;
+        report.DeviceId = _device.DeviceId;
+        report.Address = BluetoothAddress.Format(_device.BluetoothAddress);
+        _cachedDeviceId = _device.BluetoothDeviceId.Id;
+
+        _gattSession = await GattSession.FromDeviceIdAsync(_device.BluetoothDeviceId);
+        _gattSession.MaintainConnection = true;
+        _gattSessionHandler = (_, args) =>
+        {
+            if (args.Status == GattSessionStatus.Closed)
             {
-                report.Status = "not_found";
-                report.Message = "No BLE device could be opened.";
-                return report;
+                _connected = false;
             }
+        };
+        _gattSession.SessionStatusChanged += _gattSessionHandler;
+        for (var attempt = 0;
+            attempt < 25 && _gattSession.SessionStatus != GattSessionStatus.Active;
+            attempt++)
+        {
+            await Task.Delay(200, cancellationToken);
+        }
 
-            report.DeviceName = _device.Name;
-            report.DeviceId = _device.DeviceId;
-            report.Address = BluetoothAddress.Format(_device.BluetoothAddress);
+        if (_gattSession.SessionStatus != GattSessionStatus.Active)
+        {
+            report.Warnings.Add($"GATT session did not become active: {_gattSession.SessionStatus}.");
+        }
 
-            using var session = await GattSession.FromDeviceIdAsync(_device.BluetoothDeviceId);
-            session.MaintainConnection = true;
-            for (var attempt = 0; attempt < 25 && session.SessionStatus != GattSessionStatus.Active; attempt++)
-            {
-                await Task.Delay(200, cancellationToken);
-            }
+        var servicesResult = await DiscoverServicesAsync(report, cancellationToken);
+        if (servicesResult is null)
+        {
+            report.Status = "gatt_unreachable";
+            report.Message = "GATT service discovery failed.";
+            return;
+        }
 
-            if (session.SessionStatus != GattSessionStatus.Active)
-            {
-                report.Warnings.Add($"GATT session did not become active: {session.SessionStatus}.");
-            }
-
-            GattDeviceServicesResult? servicesResult = null;
-            for (var attempt = 0; attempt < 2; attempt++)
-            {
-                servicesResult = await _device.GetGattServicesAsync(BluetoothCacheMode.Uncached);
-                if (servicesResult.Status == GattCommunicationStatus.Success
-                    && servicesResult.Services.Count > 0)
-                {
-                    break;
-                }
-
-                if (attempt == 0)
-                {
-                    report.Warnings.Add(
-                        $"GATT service discovery returned {servicesResult.Status}; retrying once.");
-                    await Task.Delay(1_000, cancellationToken);
-                }
-            }
-
-            if (servicesResult is null
-                || servicesResult.Status != GattCommunicationStatus.Success
-                || servicesResult.Services.Count == 0)
-            {
-                report.Status = "gatt_unreachable";
-                report.Message =
-                    $"GATT service discovery failed: {servicesResult?.Status.ToString() ?? "no result"}.";
-                return report;
-            }
-
+        if (request.CollectServices)
+        {
             foreach (var service in servicesResult.Services)
             {
                 var brief = new GattServiceBrief
@@ -129,125 +171,130 @@ public sealed class TandemGattSession
 
                 report.Services.Add(brief);
             }
+        }
 
-            _service = servicesResult.Services.FirstOrDefault(service => service.Uuid == TandemServiceUuid);
-            if (_service is null && request.BootstrapTandem)
+        _service = servicesResult.Services.FirstOrDefault(service => service.Uuid == TandemServiceUuid);
+        if (_service is null && request.BootstrapTandem)
+        {
+            await TryBootstrapTandemAsync(servicesResult.Services, report, cancellationToken);
+            await Task.Delay(5_000, cancellationToken);
+            var refreshed = await _device.GetGattServicesAsync(BluetoothCacheMode.Uncached);
+            if (refreshed.Status == GattCommunicationStatus.Success)
             {
-                await TryBootstrapTandemAsync(servicesResult.Services, report, cancellationToken);
-                await Task.Delay(5_000, cancellationToken);
-                var refreshed = await _device.GetGattServicesAsync(BluetoothCacheMode.Uncached);
-                if (refreshed.Status == GattCommunicationStatus.Success)
+                TrackDiscoveredServices(refreshed.Services);
+                _service = refreshed.Services.FirstOrDefault(service => service.Uuid == TandemServiceUuid);
+            }
+        }
+
+        report.TandemServicePresent = _service is not null;
+        if (_service is null)
+        {
+            report.Status = "tandem_service_missing";
+            report.Message =
+                "Tandem V2 HPC service 5b833e20 is not exposed by the headphone in this state. "
+                + "The Android app likely holds the Tandem connection, or Windows must be the active audio host. "
+                + "Disconnect the phone / close Sound Connect, connect WH-1000XM6 to Windows audio, then retry.";
+            if (request.BootstrapTandem)
+            {
+                report.Message += $" Pairing bootstrap result: {report.PairingBootstrapResult ?? "not attempted"}.";
+            }
+
+            return;
+        }
+
+        var characteristicsResult = await _service.GetCharacteristicsAsync(BluetoothCacheMode.Uncached);
+        _toAcc = Find(characteristicsResult, ToAccUuid);
+        _fromAcc = Find(characteristicsResult, FromAccUuid);
+
+        if (characteristicsResult.Status != GattCommunicationStatus.Success)
+        {
+            report.Status = "tandem_service_unreadable";
+            report.Message = $"Tandem characteristic discovery failed: {characteristicsResult.Status}.";
+            return;
+        }
+
+        if (_toAcc is null || _fromAcc is null)
+        {
+            report.Status = "tandem_characteristic_missing";
+            report.Message = "Tandem TO_ACC or FROM_ACC characteristic is missing.";
+            return;
+        }
+
+        var writableLength = Find(characteristicsResult, WritableLengthUuid);
+        var determineMtu = Find(characteristicsResult, DetermineMtuUuid);
+
+        if (request.CollectDiagnostics && determineMtu is not null)
+        {
+            await ObserveMtuAsync(determineMtu, report, cancellationToken);
+        }
+
+        if (request.CollectDiagnostics && writableLength is not null)
+        {
+            var length = await ReadAsync(writableLength, cancellationToken);
+            if (length is { Length: > 0 })
+            {
+                report.Handshake.WritableValueLength = length[0];
+            }
+        }
+
+        _fromAcc.ValueChanged += OnFromAccValueChanged;
+        var notifyStatus = await _fromAcc.WriteClientCharacteristicConfigurationDescriptorAsync(
+            GattClientCharacteristicConfigurationDescriptorValue.Notify);
+        if (notifyStatus != GattCommunicationStatus.Success)
+        {
+            report.Status = "tandem_notify_failed";
+            report.Message = $"Could not subscribe to FROM_ACC: {notifyStatus}.";
+            return;
+        }
+
+        var protocol = await SendAndWaitAsync(
+            TandemV2Table1Messages.ConnectGetProtocolInfo(),
+            [(byte)TandemV2Table1Command.ConnectRetProtocolInfo],
+            report,
+            cancellationToken);
+        if (protocol is not null
+            && TandemV2Table1Messages.TryParseProtocolInfo(
+                protocol.Payload,
+                out var protocolVersion,
+                out var tableSetFlag,
+                out var secondFlag))
+        {
+            report.Handshake.ProtocolVersion = protocolVersion;
+            report.Handshake.TableSetFlag = tableSetFlag;
+            report.Handshake.SecondFlag = secondFlag;
+        }
+
+        var capability = await SendAndWaitAsync(
+            TandemV2Table1Messages.ConnectGetCapabilityInfo(),
+            [(byte)TandemV2Table1Command.ConnectRetCapabilityInfo],
+            report,
+            cancellationToken);
+        if (capability is not null)
+        {
+            report.Handshake.CapabilityPayloadHex = Convert.ToHexString(capability.Payload).ToLowerInvariant();
+        }
+
+        var support = await SendAndWaitAsync(
+            TandemV2Table1Messages.ConnectGetSupportFunction(),
+            [(byte)TandemV2Table1Command.ConnectRetSupportFunction],
+            report,
+            cancellationToken);
+        if (support is not null
+            && TandemV2Table1Messages.TryParseSupportFunctions(
+                support.Payload,
+                out var functions))
+        {
+            report.Handshake.SupportFunctions = functions
+                .Select(function => new TandemFunction
                 {
-                    _service = refreshed.Services.FirstOrDefault(service => service.Uuid == TandemServiceUuid);
-                }
-            }
+                    FunctionType = function.FunctionType,
+                    TableNumber = function.TableNumber,
+                })
+                .ToList();
+        }
 
-            report.TandemServicePresent = _service is not null;
-            if (_service is null)
-            {
-                report.Status = "tandem_service_missing";
-                report.Message =
-                    "Tandem V2 HPC service 5b833e20 is not exposed by the headphone in this state. "
-                    + "The Android app likely holds the Tandem connection, or Windows must be the active audio host. "
-                    + "Disconnect the phone / close Sound Connect, connect WH-1000XM6 to Windows audio, then retry.";
-                if (request.BootstrapTandem)
-                {
-                    report.Message += $" Pairing bootstrap result: {report.PairingBootstrapResult ?? "not attempted"}.";
-                }
-
-                return report;
-            }
-
-            var characteristicsResult = await _service.GetCharacteristicsAsync(BluetoothCacheMode.Uncached);
-            if (characteristicsResult.Status != GattCommunicationStatus.Success)
-            {
-                report.Status = "tandem_service_unreadable";
-                report.Message = $"Tandem characteristic discovery failed: {characteristicsResult.Status}.";
-                return report;
-            }
-
-            _toAcc = Find(characteristicsResult, ToAccUuid);
-            _fromAcc = Find(characteristicsResult, FromAccUuid);
-            var writableLength = Find(characteristicsResult, WritableLengthUuid);
-            var determineMtu = Find(characteristicsResult, DetermineMtuUuid);
-
-            if (_toAcc is null || _fromAcc is null)
-            {
-                report.Status = "tandem_characteristic_missing";
-                report.Message = "Tandem TO_ACC or FROM_ACC characteristic is missing.";
-                return report;
-            }
-
-            if (determineMtu is not null)
-            {
-                await ObserveMtuAsync(determineMtu, report, cancellationToken);
-            }
-
-            if (writableLength is not null)
-            {
-                var length = await ReadAsync(writableLength, cancellationToken);
-                if (length is { Length: > 0 })
-                {
-                    report.Handshake.WritableValueLength = length[0];
-                }
-            }
-
-            _fromAcc.ValueChanged += OnFromAccValueChanged;
-            var notifyStatus = await _fromAcc.WriteClientCharacteristicConfigurationDescriptorAsync(
-                GattClientCharacteristicConfigurationDescriptorValue.Notify);
-            if (notifyStatus != GattCommunicationStatus.Success)
-            {
-                report.Status = "tandem_notify_failed";
-                report.Message = $"Could not subscribe to FROM_ACC: {notifyStatus}.";
-                return report;
-            }
-
-            var protocol = await SendAndWaitAsync(
-                TandemV2Table1Messages.ConnectGetProtocolInfo(),
-                [(byte)TandemV2Table1Command.ConnectRetProtocolInfo],
-                report,
-                cancellationToken);
-            if (protocol is not null
-                && TandemV2Table1Messages.TryParseProtocolInfo(
-                    protocol.Payload,
-                    out var protocolVersion,
-                    out var tableSetFlag,
-                    out var secondFlag))
-            {
-                report.Handshake.ProtocolVersion = protocolVersion;
-                report.Handshake.TableSetFlag = tableSetFlag;
-                report.Handshake.SecondFlag = secondFlag;
-            }
-
-            var capability = await SendAndWaitAsync(
-                TandemV2Table1Messages.ConnectGetCapabilityInfo(),
-                [(byte)TandemV2Table1Command.ConnectRetCapabilityInfo],
-                report,
-                cancellationToken);
-            if (capability is not null)
-            {
-                report.Handshake.CapabilityPayloadHex = Convert.ToHexString(capability.Payload).ToLowerInvariant();
-            }
-
-            var support = await SendAndWaitAsync(
-                TandemV2Table1Messages.ConnectGetSupportFunction(),
-                [(byte)TandemV2Table1Command.ConnectRetSupportFunction],
-                report,
-                cancellationToken);
-            if (support is not null
-                && TandemV2Table1Messages.TryParseSupportFunctions(
-                    support.Payload,
-                    out var functions))
-            {
-                report.Handshake.SupportFunctions = functions
-                    .Select(function => new TandemFunction
-                    {
-                        FunctionType = function.FunctionType,
-                        TableNumber = function.TableNumber,
-                    })
-                    .ToList();
-            }
-
+        if (request.CollectDiagnostics || request.QuerySnapshot)
+        {
             await ReadDeviceTextAsync(
                 TandemDeviceInfoType.ModelName,
                 value => report.Handshake.Model = value,
@@ -258,68 +305,171 @@ public sealed class TandemGattSession
                 value => report.Handshake.Firmware = value,
                 report,
                 cancellationToken);
-
-            if (request.QueryFeatures && report.Handshake.ProtocolVersion is not null)
-            {
-                await QueryFeaturesAsync(report, cancellationToken);
-            }
-
-            if (request.QuerySnapshot && report.Handshake.ProtocolVersion is not null)
-            {
-                await QuerySnapshotAsync(report, cancellationToken);
-            }
-
-            if (request.ApplyEq && report.Handshake.ProtocolVersion is not null)
-            {
-                await ApplyEqAsync(request, report, cancellationToken);
-            }
-
-            if (request.ApplyNcAsm && report.Handshake.ProtocolVersion is not null)
-            {
-                await ApplyNcAsmAsync(request, report, cancellationToken);
-            }
-
-            if (request.ApplyMultipoint && report.Handshake.ProtocolVersion is not null)
-            {
-                await ApplyMultipointAsync(request, report, cancellationToken);
-            }
-
-            if (request.ApplyAutoPowerOff && report.Handshake.ProtocolVersion is not null)
-            {
-                await ApplyAutoPowerOffAsync(request, report, cancellationToken);
-            }
-
-            if (request.ApplyListeningMode && report.Handshake.ProtocolVersion is not null)
-            {
-                await ApplyListeningModeAsync(request, report, cancellationToken);
-            }
-
-            report.Status = report.Handshake.ProtocolVersion is not null
-                ? "ok"
-                : "handshake_incomplete";
-            report.Message = report.Status == "ok"
-                ? "Tandem handshake completed."
-                : "Tandem service is present but the protocol handshake did not complete.";
         }
-        catch (OperationCanceledException)
+
+        _handshake = report.Handshake;
+        _connected = true;
+    }
+
+    /// <summary>
+    /// Runs a snapshot or a write on the already connected session.
+    /// </summary>
+    public async Task ExecuteAsync(
+        ProbeRequest request,
+        TandemSessionReport report,
+        CancellationToken cancellationToken = default)
+    {
+        _report = report;
+        if (!IsConnected)
         {
-            report.Status = "cancelled";
-            report.Message = "Tandem session was cancelled.";
+            report.Status = "not_connected";
+            report.Message = "The Tandem session is not connected.";
+            return;
+        }
+
+        report.DeviceName = _device?.Name;
+        report.DeviceId = _device?.DeviceId;
+        report.Address = _device is null
+            ? null
+            : BluetoothAddress.Format(_device.BluetoothAddress);
+        if (_handshake is not null)
+        {
+            report.Handshake = _handshake;
+        }
+
+        try
+        {
+            await ExecuteCoreAsync(request, report, cancellationToken);
         }
         catch (Exception ex)
         {
-            report.Status = "error";
-            report.Message = $"{ex.GetType().Name}: {ex.Message}";
-            report.Errors.Add(ex.ToString());
+            CaptureException(report, ex);
+            if (report.Status != "cancelled")
+            {
+                // Any unexpected failure leaves the link in an unknown state.
+                _connected = false;
+            }
         }
-        finally
+    }
+
+    private async Task ExecuteCoreAsync(
+        ProbeRequest request,
+        TandemSessionReport report,
+        CancellationToken cancellationToken)
+    {
+        if (request.QueryFeatures && report.Handshake.ProtocolVersion is not null)
         {
-            await CleanupAsync(report);
-            report.CompletedAt = DateTimeOffset.Now;
+            await QueryFeaturesAsync(report, cancellationToken);
         }
 
-        return report;
+        if (request.QuerySnapshot && report.Handshake.ProtocolVersion is not null)
+        {
+            await QuerySnapshotAsync(report, cancellationToken);
+        }
+
+        if (request.ApplyEq && report.Handshake.ProtocolVersion is not null)
+        {
+            await ApplyEqAsync(request, report, cancellationToken);
+        }
+
+        if (request.ApplyNcAsm && report.Handshake.ProtocolVersion is not null)
+        {
+            await ApplyNcAsmAsync(request, report, cancellationToken);
+        }
+
+        if (request.ApplyMultipoint && report.Handshake.ProtocolVersion is not null)
+        {
+            await ApplyMultipointAsync(request, report, cancellationToken);
+        }
+
+        if (request.ApplyAutoPowerOff && report.Handshake.ProtocolVersion is not null)
+        {
+            await ApplyAutoPowerOffAsync(request, report, cancellationToken);
+        }
+
+        if (request.ApplyListeningMode && report.Handshake.ProtocolVersion is not null)
+        {
+            await ApplyListeningModeAsync(request, report, cancellationToken);
+        }
+
+        if (request.ApplyScene
+            && request.Scene is not null
+            && report.Handshake.ProtocolVersion is not null)
+        {
+            await ApplySceneAsync(request, report, cancellationToken);
+        }
+
+        report.Status = report.Handshake.ProtocolVersion is not null
+            ? "ok"
+            : "handshake_incomplete";
+        report.Message = report.Status == "ok"
+            ? "Tandem handshake completed."
+            : "Tandem service is present but the protocol handshake did not complete.";
     }
+
+    private async Task<GattDeviceServicesResult?> DiscoverServicesAsync(
+        TandemSessionReport report,
+        CancellationToken cancellationToken)
+    {
+        if (_device is null)
+        {
+            return null;
+        }
+
+        GattDeviceServicesResult? servicesResult = null;
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            servicesResult = await _device.GetGattServicesAsync(BluetoothCacheMode.Uncached);
+            if (servicesResult.Status == GattCommunicationStatus.Success
+                && servicesResult.Services.Count > 0)
+            {
+                break;
+            }
+
+            if (attempt == 0)
+            {
+                report.Warnings.Add(
+                    $"GATT service discovery returned {servicesResult.Status}; retrying once.");
+                await Task.Delay(1_000, cancellationToken);
+            }
+        }
+
+        if (servicesResult is null
+            || servicesResult.Status != GattCommunicationStatus.Success
+            || servicesResult.Services.Count == 0)
+        {
+            return null;
+        }
+
+        TrackDiscoveredServices(servicesResult.Services);
+        return servicesResult;
+    }
+
+    private static void CaptureException(TandemSessionReport report, Exception ex)
+    {
+        switch (ex)
+        {
+            case OperationCanceledException:
+                report.Status = "cancelled";
+                report.Message = "Tandem session was cancelled.";
+                break;
+
+            case System.Runtime.InteropServices.COMException com:
+                report.Status = com.HResult == DeviceUnavailableHResult
+                    ? "device_unavailable"
+                    : "error";
+                report.Message = $"COMException (0x{com.HResult:X8}): {com.Message}";
+                report.Errors.Add(com.ToString());
+                break;
+
+            default:
+                report.Status = "error";
+                report.Message = $"{ex.GetType().Name}: {ex.Message}";
+                report.Errors.Add(ex.ToString());
+                break;
+        }
+    }
+
 
     private static async Task<BluetoothLEDevice?> OpenDeviceAsync(
         ProbeRequest request,
@@ -335,39 +485,152 @@ public sealed class TandemGattSession
 
         if (BluetoothAddress.TryParse(request.Address, out var address))
         {
-            var device = await BluetoothLEDevice.FromBluetoothAddressAsync(address, addressType);
+            var device = await TryOpenByAddressAsync(address, addressType, report);
             if (device is not null)
             {
                 return device;
             }
         }
 
-        var devices = await DeviceInformation.FindAllAsync(BluetoothLEDevice.GetDeviceSelector());
-        var target = devices.FirstOrDefault(device =>
-            (!string.IsNullOrWhiteSpace(request.Name)
-                && (device.Name ?? string.Empty).Contains(request.Name, StringComparison.OrdinalIgnoreCase))
-            || AddressMatches(device, request.Address));
+        var cached = await TryOpenByIdAsync(_cachedDeviceId);
+        if (cached is not null)
+        {
+            return cached;
+        }
 
+        // Paired devices are a small, stable set; checking them first avoids
+        // walking every BLE device on each session.
+        var paired = await FindDevicesAsync(
+            BluetoothLEDevice.GetDeviceSelectorFromPairingState(true),
+            report);
+        var pairedTarget = FindTarget(paired, request);
+        if (pairedTarget is not null)
+        {
+            var device = await TryOpenByIdAsync(pairedTarget.Id);
+            if (device is not null)
+            {
+                return device;
+            }
+        }
+
+        var devices = await FindDevicesAsync(BluetoothLEDevice.GetDeviceSelector(), report);
+        var target = FindTarget(devices, request);
         if (target is not null)
         {
-            var device = await BluetoothLEDevice.FromIdAsync(target.Id);
+            var device = await TryOpenByIdAsync(target.Id);
             if (device is not null)
             {
                 return device;
             }
         }
 
-        var scan = await new BleAdvertisementScanner().ScanAsync(TimeSpan.FromSeconds(5), cancellationToken);
-        var advertisement = scan.Advertisements.FirstOrDefault(item =>
+        var scan = await ScanForTargetAsync(report, cancellationToken);
+        var advertisement = scan?.Advertisements.FirstOrDefault(item =>
             !string.IsNullOrWhiteSpace(request.Name)
             && (item.LocalName ?? string.Empty).Contains(request.Name, StringComparison.OrdinalIgnoreCase));
 
         if (advertisement is not null && BluetoothAddress.TryParse(advertisement.Address, out var advertisedAddress))
         {
-            return await BluetoothLEDevice.FromBluetoothAddressAsync(advertisedAddress, BluetoothAddressType.Random);
+            return await TryOpenByAddressAsync(
+                advertisedAddress,
+                BluetoothAddressType.Random,
+                report);
         }
 
         return null;
+    }
+
+    private static async Task<IReadOnlyList<DeviceInformation>> FindDevicesAsync(
+        string selector,
+        TandemSessionReport report)
+    {
+        try
+        {
+            var devices = await DeviceInformation.FindAllAsync(selector);
+            return devices.ToList();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // A disabled or busy radio raises a COM error; treat it as no match
+            // so the caller reports not_found instead of retrying.
+            report.Warnings.Add($"Device enumeration failed: {ex.GetType().Name}: {ex.Message}");
+            return [];
+        }
+    }
+
+    private static async Task<BluetoothLEDevice?> TryOpenByAddressAsync(
+        ulong address,
+        BluetoothAddressType addressType,
+        TandemSessionReport report)
+    {
+        try
+        {
+            return await BluetoothLEDevice.FromBluetoothAddressAsync(address, addressType);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            report.Warnings.Add($"Opening Bluetooth address failed: {ex.GetType().Name}: {ex.Message}");
+            return null;
+        }
+    }
+
+    private static async Task<BluetoothLEDevice?> TryOpenByIdAsync(string? deviceId)
+    {
+        if (string.IsNullOrWhiteSpace(deviceId))
+        {
+            return null;
+        }
+
+        try
+        {
+            var device = await BluetoothLEDevice.FromIdAsync(deviceId);
+            if (device is not null)
+            {
+                return device;
+            }
+        }
+        catch
+        {
+            // A stale or revoked id falls back to discovery.
+        }
+
+        if (string.Equals(deviceId, _cachedDeviceId, StringComparison.Ordinal))
+        {
+            _cachedDeviceId = null;
+        }
+
+        return null;
+    }
+
+    private static DeviceInformation? FindTarget(
+        IEnumerable<DeviceInformation> devices,
+        ProbeRequest request)
+    {
+        return devices.FirstOrDefault(device =>
+            (!string.IsNullOrWhiteSpace(request.Name)
+                && (device.Name ?? string.Empty).Contains(request.Name, StringComparison.OrdinalIgnoreCase))
+            || AddressMatches(device, request.Address));
+    }
+
+    private static async Task<BleScanReport?> ScanForTargetAsync(
+        TandemSessionReport report,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await new BleAdvertisementScanner().ScanAsync(
+                TimeSpan.FromSeconds(5),
+                cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            report.Warnings.Add($"BLE scan failed: {ex.GetType().Name}: {ex.Message}");
+            return null;
+        }
     }
 
     private static bool AddressMatches(DeviceInformation device, string? requestedAddress)
@@ -1278,6 +1541,134 @@ public sealed class TandemGattSession
             : "write_sent_unverified";
     }
 
+    /// <summary>
+    /// Applies a saved scene in one session. Groups run in a fixed order:
+    /// NC/ASM, EQ, then listening mode. When the scene targets NC, the ASM layer
+    /// is written first so the headphone keeps the intended ambient parameters,
+    /// because switching ASM -> NC preserves the previous ASM values.
+    /// </summary>
+    private async Task ApplySceneAsync(
+        ProbeRequest request,
+        TandemSessionReport report,
+        CancellationToken cancellationToken)
+    {
+        var scene = request.Scene!;
+        var change = new TandemSceneChange
+        {
+            SceneId = scene.Id,
+            SceneName = scene.Name,
+        };
+        report.Scene = change;
+
+        if (scene.NcAsm is { } nc)
+        {
+            if (nc.Enabled && nc.Mode == TandemNcAsmMode.Nc)
+            {
+                await ApplyNcAsmAsync(
+                    request with
+                    {
+                        ApplyNcAsm = true,
+                        NcAsmMode = TandemNcAsmMode.Asm,
+                        NcAsmEnabled = true,
+                        NcAsmLevel = nc.Level,
+                        NcAsmVoiceFocus = nc.VoiceFocus,
+                        NcAsmNoiseAdaptive = nc.NoiseAdaptive,
+                        NcAsmSensitivity = nc.Sensitivity,
+                        ApplyEq = false,
+                        ApplyMultipoint = false,
+                        ApplyAutoPowerOff = false,
+                        ApplyListeningMode = false,
+                        ApplyScene = false,
+                        Scene = null,
+                    },
+                    report,
+                    cancellationToken);
+            }
+
+            await ApplyNcAsmAsync(
+                request with
+                {
+                    ApplyNcAsm = true,
+                    NcAsmMode = nc.Mode,
+                    NcAsmEnabled = nc.Enabled,
+                    NcAsmLevel = nc.Level,
+                    NcAsmVoiceFocus = nc.VoiceFocus,
+                    NcAsmNoiseAdaptive = nc.NoiseAdaptive,
+                    NcAsmSensitivity = nc.Sensitivity,
+                    ApplyEq = false,
+                    ApplyMultipoint = false,
+                    ApplyAutoPowerOff = false,
+                    ApplyListeningMode = false,
+                    ApplyScene = false,
+                    Scene = null,
+                },
+                report,
+                cancellationToken);
+
+            change.Steps.Add(new TandemSceneStep
+            {
+                Name = "ncasm",
+                Status = report.NcAsm?.Status ?? "unknown",
+                Verified = report.NcAsm?.Verified == true,
+            });
+        }
+
+        if (scene.Eq is { } eq)
+        {
+            var bands = eq.CustomBands?
+                .Select(band => (byte)Math.Clamp(band, 0, 255))
+                .ToArray();
+            await ApplyEqAsync(
+                request with
+                {
+                    ApplyNcAsm = false,
+                    ApplyEq = true,
+                    EqPreset = eq.Preset,
+                    EqBands = eq.Preset == TandemEqPresetId.Custom ? bands : null,
+                    ApplyMultipoint = false,
+                    ApplyAutoPowerOff = false,
+                    ApplyListeningMode = false,
+                    ApplyScene = false,
+                    Scene = null,
+                },
+                report,
+                cancellationToken);
+
+            change.Steps.Add(new TandemSceneStep
+            {
+                Name = "eq",
+                Status = report.Eq?.Status ?? "unknown",
+                Verified = report.Eq?.Verified == true,
+            });
+        }
+
+        if (scene.Listening is { } listening)
+        {
+            await ApplyListeningModeAsync(
+                request with
+                {
+                    ApplyNcAsm = false,
+                    ApplyEq = false,
+                    ApplyMultipoint = false,
+                    ApplyAutoPowerOff = false,
+                    ApplyListeningMode = true,
+                    ListeningMode = listening.Mode,
+                    BgmRoomSize = listening.RoomSize,
+                    ApplyScene = false,
+                    Scene = null,
+                },
+                report,
+                cancellationToken);
+
+            change.Steps.Add(new TandemSceneStep
+            {
+                Name = "listening",
+                Status = report.ListeningMode?.Status ?? "unknown",
+                Verified = report.ListeningMode?.Verified == true,
+            });
+        }
+    }
+
     private async Task QuerySnapshotAsync(
         TandemSessionReport report,
         CancellationToken cancellationToken)
@@ -1645,26 +2036,77 @@ public sealed class TandemGattSession
         return bytes;
     }
 
-    private async Task CleanupAsync(TandemSessionReport report)
+    private void TrackDiscoveredServices(IEnumerable<GattDeviceService> services)
+    {
+        foreach (var service in services)
+        {
+            _discoveredServices.Add(service);
+        }
+    }
+
+    /// <summary>
+    /// Releases the connection. Kept separate from <see cref="ConnectAsync"/> so
+    /// a host can hold the session open across operations.
+    /// </summary>
+    public void Disconnect(TandemSessionReport? report = null)
     {
         if (_fromAcc is not null)
         {
             _fromAcc.ValueChanged -= OnFromAccValueChanged;
+        }
+
+        foreach (var service in _discoveredServices)
+        {
             try
             {
-                await _fromAcc.WriteClientCharacteristicConfigurationDescriptorAsync(
-                    GattClientCharacteristicConfigurationDescriptorValue.None);
+                service.Dispose();
             }
             catch
             {
-                // Best effort.
+                // A service can already be released by the OS after a disconnect.
             }
         }
 
-        _service?.Dispose();
+        _discoveredServices.Clear();
+
+        if (_gattSession is not null && _gattSessionHandler is not null)
+        {
+            try
+            {
+                _gattSession.SessionStatusChanged -= _gattSessionHandler;
+            }
+            catch
+            {
+                // The session may already be closed.
+            }
+        }
+
+        _gattSessionHandler = null;
+
+        try
+        {
+            _gattSession?.Dispose();
+        }
+        catch
+        {
+            // Best effort.
+        }
+
         _device?.Dispose();
-        _service = null;
+
+        _gattSession = null;
         _device = null;
+        _service = null;
+        _toAcc = null;
+        _fromAcc = null;
+        _handshake = null;
+        _connected = false;
+
+        if (report is not null && report.Status != "ok")
+        {
+            // The cached device id may point at a stale instance; rediscover next time.
+            _cachedDeviceId = null;
+        }
     }
 }
 

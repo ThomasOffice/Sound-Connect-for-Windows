@@ -18,6 +18,33 @@
           Condition="Exists('$(TargetDir)$(TargetName).pri')" />
   </Target>
 
+  <!--
+    The self-contained Windows App SDK payload includes AI/ML and widget
+    components this app never loads (verified against the running process's
+    module list). WinUIEdit.dll is required for text input and is kept.
+  -->
+  <Target Name="TrimUnusedWindowsAppSdkPayload" AfterTargets="Publish">
+    <ItemGroup>
+      <_UnusedPayload Include="$(PublishDir)onnxruntime*.dll" />
+      <_UnusedPayload Include="$(PublishDir)DirectML.dll" />
+      <_UnusedPayload Include="$(PublishDir)Microsoft.ML.OnnxRuntime.dll" />
+      <_UnusedPayload Include="$(PublishDir)Microsoft.Windows.AI.*" />
+      <_UnusedPayload Include="$(PublishDir)Microsoft.Windows.Widgets*" />
+      <_UnusedPayload Include="$(PublishDir)NpuDetect\**\*" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <_PublishedDirectory Include="$([System.IO.Directory]::GetDirectories('$(PublishDir)'))" />
+      <_UnusedLocaleDirectory
+        Include="@(_PublishedDirectory)"
+        Condition="$([System.Text.RegularExpressions.Regex]::IsMatch('%(Filename)', '^[a-z]{2,3}(-[A-Za-z]{2,4})+$')) AND '%(Filename)' != 'en-us' AND '%(Filename)' != 'zh-CN' AND '%(Filename)' != 'zh-TW'" />
+    </ItemGroup>
+
+    <Delete Files="@(_UnusedPayload)" ContinueOnError="true" />
+    <RemoveDir Directories="@(_UnusedLocaleDirectory)" ContinueOnError="true" />
+    <RemoveDir Directories="$(PublishDir)NpuDetect" ContinueOnError="true" />
+  </Target>
+
   <ItemGroup>
     <None Update="Assets\app.ico"
           CopyToOutputDirectory="PreserveNewest"
@@ -39,9 +66,9 @@
     <WindowsPackageType>None</WindowsPackageType>
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
     <Nullable>enable</Nullable>
-    <Version>1.0.0</Version>
-    <AssemblyVersion>1.0.0.0</AssemblyVersion>
-    <FileVersion>1.0.0.0</FileVersion>
+    <Version>1.0.1</Version>
+    <AssemblyVersion>1.0.1.0</AssemblyVersion>
+    <FileVersion>1.0.1.0</FileVersion>
     <Product>Sound Connect for Windows</Product>
     <AssemblyTitle>Sound Connect for Windows</AssemblyTitle>
   </PropertyGroup>

@@ -9,7 +9,7 @@ Windows 11 x64 本机控制 Sony WH-1000XM6 的桌面工具。
 Windows x64 自包含版本请在 [Releases](https://github.com/ThomasOffice/Sound-Connect-for-Windows/releases) 下载：
 
 ```text
-Xm6Control-1.0.0-win-x64.zip
+Xm6Control-1.0.1-win-x64.zip
 ```
 
 解压后运行：
@@ -29,7 +29,9 @@ Xm6Control.App.exe
 - **聆听模式**：标准、背景音乐（我的房间 / 客厅 / 咖啡馆）、电影
 - **多点连接**：开启 / 关闭
 - **自动关机**：取下耳机后 / 关闭
-- **系统托盘**：概览、聆听模式、退出
+- **情景**：把环境声音、均衡器和聆听模式组合保存，一键应用
+- **设置**：开机自启、启动最小化、窗口记忆、主题与背景、中文 / English、托盘行为、自动刷新与重连、目标设备
+- **系统托盘**：概览、环境声音、均衡器、聆听模式、退出；提示中显示电量和当前模式
 - **关闭行为**：直接关闭应用或隐藏到系统托盘
 - **电量与固件**：只读显示
 
@@ -57,6 +59,8 @@ dotnet publish src/Xm6Control.App/Xm6Control.App.csproj `
   -p:DebugType=None -p:DebugSymbols=false `
   -o artifacts/publish/win-x64
 ```
+
+发布时会自动移除应用不会加载的 Windows App SDK AI/ML 与 Widgets 组件，以及中英文之外的语言资源：解压后约 168 MB，压缩后约 67 MB。
 
 ## 说明
 

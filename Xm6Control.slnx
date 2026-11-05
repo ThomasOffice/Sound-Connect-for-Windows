@@ -11,6 +11,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Xm6Control.Bluetooth.Windows.Tests/Xm6Control.Bluetooth.Windows.Tests.csproj" />
+    <Project Path="tests/Xm6Control.Core.Tests/Xm6Control.Core.Tests.csproj" />
     <Project Path="tests/Xm6Control.Protocol.Tests/Xm6Control.Protocol.Tests.csproj" />
   </Folder>
 </Solution>

@@ -17,8 +17,14 @@ public partial class App : Application
     {
         try
         {
-            _window = new MainWindow();
-            _window.Activate();
+            var window = new MainWindow();
+            _window = window;
+            if (!window.ShouldStartMinimized)
+            {
+                window.Activate();
+            }
+
+            window.ApplyStartupPlacement();
         }
         catch (Exception ex)
         {

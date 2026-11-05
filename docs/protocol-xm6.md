@@ -236,6 +236,19 @@ Source-derived room mapping from `ListeningOptionFragment` and `RoomSize`:
 My Room / Living Room / Cafe. Live verification is pending because the
 headphones were powered off when this feature was added.
 
+### Saved scenes (multi-feature write)
+
+A scene applies NC/ASM, EQ, and listening mode in one session, in that order.
+When the scene targets NC, the app writes the ambient parameters with mode ASM
+first and then switches to NC. The headphone ignores ambient fields on a direct
+ASM -> NC write and keeps the previous ASM values, so the two-step write is
+required to restore the intended ambient layer.
+
+Each group is read back independently and reported as its own step; a failing
+step does not abort the remaining groups. Verified on WH-1000XM6: a scene with
+NC level 10, EQ Off, and Standard listening applied with all three steps
+matching their read-back.
+
 ### Multipoint (general setting)
 
 The XM6 exposes multipoint as a general-setting Boolean, not a dedicated

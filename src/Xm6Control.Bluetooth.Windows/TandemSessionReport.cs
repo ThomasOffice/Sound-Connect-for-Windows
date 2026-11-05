@@ -25,6 +25,7 @@ public sealed class TandemSessionReport
     public TandemMultipointChange? Multipoint { get; set; }
     public TandemAutoPowerOffChange? AutoPowerOff { get; set; }
     public TandemListeningModeChange? ListeningMode { get; set; }
+    public TandemSceneChange? Scene { get; set; }
     public TandemDeviceSnapshot? Snapshot { get; set; }
     public List<string> Warnings { get; set; } = [];
     public List<string> Errors { get; set; } = [];
@@ -104,6 +105,22 @@ public sealed class TandemListeningModeChange
     public TandemListeningModeState? Requested { get; set; }
     public TandemListeningModeState? After { get; set; }
     public string? ResponseHex { get; set; }
+    public bool Verified { get; set; }
+}
+
+public sealed class TandemSceneChange
+{
+    public string SceneId { get; set; } = string.Empty;
+    public string SceneName { get; set; } = string.Empty;
+    public List<TandemSceneStep> Steps { get; set; } = [];
+
+    public bool Verified => Steps.Count > 0 && Steps.All(step => step.Verified);
+}
+
+public sealed class TandemSceneStep
+{
+    public string Name { get; set; } = string.Empty;
+    public string Status { get; set; } = "unknown";
     public bool Verified { get; set; }
 }
 

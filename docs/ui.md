@@ -21,7 +21,10 @@ The app is unpackaged and self-contained with Windows App SDK 1.8.
 - **聆听模式**: Standard (uses EQ), Background Music with room distance, Cinema.
 - **多点连接**: multipoint on/off, apply and read-back.
 - **自动关机**: remove-from-ears or disabled; apply and read-back.
-- **关闭行为**: close the app directly or hide it to the system tray.
+- **情景**: save the current noise, EQ, and listening settings as a named scene,
+  then apply it with one click.
+- **设置**: startup, window, appearance, language, tray, refresh/reconnect, and
+  target device.
 - **关于**: feature summary, local-only scope, and GitHub link.
 
 ## Listening mode
@@ -32,29 +35,85 @@ The app is unpackaged and self-contained with Windows App SDK 1.8.
 - Cinema enables the `UPMIX_CINEMA` audio effect and turns BGM off.
 - The page shows the current EQ preset so the Standard/EQ relationship is clear.
 
-## Multipoint and auto power off
+## Scenes
 
-- Multipoint is read from `GENERAL_SETTING2` (`MULTIPOINT_SETTING`) and written
-  with `GENERAL_SETTING_SET_PARAM`. Turning it off can be refused while LDAC is
-  available or two devices are connected; the UI reports the read-back result.
-- Auto power off exposes only `WhenRemovedFromEars` and `Disable`. The UI reads
-  and writes the wearing-detection path and does not show a “last selected”
-  time.
-- The headphone does not expose a connected-device list or an active-source
-  switch over Tandem table1. Source switching is left to the headphone and the
-  playing device.
+- A scene stores up to three groups: noise control (mode, level, automatic
+  ambient, sensitivity, voice focus), EQ preset (plus bands for Custom), and
+  listening mode with room distance.
+- Applying a scene uses a single Tandem session and writes the groups in a fixed
+  order: noise control, EQ, then listening mode. Each step is read back and
+  reported separately; a failed step does not stop the remaining ones.
+- When a scene targets NC, the app first writes the ambient parameters with mode
+  ASM and then switches to NC. The headphone ignores ambient fields on an
+  ASM -> NC write and keeps the last ASM values.
+- Scenes are stored in the same settings file. Up to 50 scenes, unique names,
+  no import/export yet.
+
+## Settings
+
+- **启动**: start with Windows (per-user `Run` entry), start minimized to the
+  tray, and read the headphone state at startup. If the tray icon is unavailable
+  the window opens normally.
+- **窗口**: remember position and size, and reopen the last page. Restored
+  positions are converted between DIPs and physical pixels and recentred when
+  the saved position is mostly off-screen.
+- **外观**: system/light/dark theme and Mica, Acrylic, or solid backdrop. An
+  unsupported backdrop falls back to a solid theme colour.
+- **语言**: Chinese or English, applied without restarting the app.
+- **托盘**: show battery and mode in the tooltip; choose whether a single click
+  opens the window or shows the menu. A double click always opens the window.
+- **刷新与重连**: automatic refresh at 1, 5, or 15 minutes (off by default) and
+  a retry policy of 2 s, 5 s, and 15 s after a transient failure. A missing or
+  unavailable device is reported immediately instead of being retried. The
+  shortest interval is one minute because battery is read at most once per
+  minute.
+- **目标设备**: device name and optional Bluetooth address used by every Tandem
+  session. A wrong name is reported explicitly on the overview page.
+- Close behaviour is part of this page: exit directly or hide to the tray.
+
+Preferences are stored in `%LOCALAPPDATA%\Xm6Control\settings.json`. Writes are
+atomic, unknown or missing fields fall back to defaults, and a malformed file is
+kept aside as `settings.json.corrupt` instead of being overwritten.
+
+## Connection lifetime
+
+- While the main window is shown, the app keeps one Tandem session open and
+  reuses the connection, GATT discovery, and handshake across actions. A warm
+  write takes roughly 0.3-1 s instead of several seconds.
+- Opening the window from the tray reconnects in the background immediately.
+  An action issued while this prewarm runs waits for the connection instead of
+  opening a second session.
+- Hiding the window to the tray releases the connection so the phone app can use
+  Tandem again. Automatic refresh while hidden uses a one-shot connect, refresh,
+  and release.
+- When the link drops (headphone power off, Bluetooth toggle, another host), the
+  next operation reconnects automatically.
+- Holding the connection while the window is open means the phone's Sound
+  Connect cannot use Tandem during that time.
 
 ## System tray
 
-- **关闭行为** selects whether the window close button exits or hides the app.
-- The tray icon menu provides **概览**, **聆听模式**, and **退出**.
-- The preference is stored in `%LOCALAPPDATA%\Xm6Control\settings.json`.
+- The tray icon menu provides **概览**, **环境声音**, **均衡器**, **聆听模式**,
+  and **退出**.
+- The tooltip shows the device, mode, and battery when available.
 - Tray icon creation is best effort; if the shell rejects it, close-to-tray is
   not used and the app closes normally.
 
+## Localization
+
+- User-visible strings live in `src/Xm6Control.Core/Localization.cs` rather than
+  `.resw` resources. This keeps runtime switching deterministic for an
+  unpackaged, self-contained app.
+- XAML strings use the `Loc` attached properties; dynamic strings call
+  `Localization.Text`/`Format`. A language change re-applies both without
+  restarting.
+- Option labels, scene summaries, tray menu items, and status messages follow the
+  selected language. User data such as scene names is never translated.
+
 ## Current UI limitations
 
-- Each action opens a new Tandem session; there is no persistent background session yet.
-- Startup behavior is not implemented yet.
+- A scene apply is best-effort per step: partial success is reported, not rolled back.
+- Restoring a window position across monitors with different DPI scales uses the
+  window's current scale, so the restored position can be approximate.
 - NC/ASM supports NC, ASM, and Off, plus automatic ambient sound (with
   sensitivity) and voice focus.
