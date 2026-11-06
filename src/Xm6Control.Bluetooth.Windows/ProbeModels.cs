@@ -12,6 +12,7 @@ public sealed record ProbeRequest
     public bool BootstrapTandem { get; init; }
     public bool QueryFeatures { get; init; }
     public bool QuerySnapshot { get; init; }
+    public bool QueryIndicators { get; init; }
     public bool CollectServices { get; init; } = true;
     public bool CollectDiagnostics { get; init; } = true;
     public bool ApplyEq { get; init; }
@@ -34,6 +35,8 @@ public sealed record ProbeRequest
     public TandemRoomSize? BgmRoomSize { get; init; }
     public bool ApplyScene { get; init; }
     public TandemSceneDefinition? Scene { get; init; }
+    public bool ApplyDsee { get; init; }
+    public bool DseeAuto { get; init; }
 }
 
 public sealed class ProbeReport

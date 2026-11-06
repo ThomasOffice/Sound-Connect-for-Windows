@@ -52,6 +52,8 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
 
                                 <TextBlock Grid.Row="0" Grid.Column="0" loc:Loc.Text="overview.device" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -65,6 +67,12 @@
 
                                 <TextBlock Grid.Row="3" Grid.Column="0" loc:Loc.Text="overview.connection" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 <TextBlock Grid.Row="3" Grid.Column="1" x:Name="ConnectionText" loc:Loc.Text="overview.disconnected" />
+
+                                <TextBlock Grid.Row="4" Grid.Column="0" loc:Loc.Text="overview.codec" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock Grid.Row="4" Grid.Column="1" x:Name="CodecText" loc:Loc.Text="overview.unknown" />
+
+                                <TextBlock Grid.Row="5" Grid.Column="0" loc:Loc.Text="overview.dsee" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock Grid.Row="5" Grid.Column="1" x:Name="DseeOverviewText" loc:Loc.Text="overview.unknown" />
                             </Grid>
                         </Border>
 
@@ -165,6 +173,25 @@
                                 <TextBlock TextWrapping="Wrap"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                            loc:Loc.Text="listening.hint" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border x:Name="DseeBox" Visibility="Collapsed"
+                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1" CornerRadius="8" Padding="18">
+                            <StackPanel Spacing="12">
+                                <TextBlock loc:Loc.Text="dsee.title" Style="{StaticResource BodyStrongTextBlockStyle}" />
+
+                                <ToggleSwitch x:Name="DseeToggle" loc:Loc.Header="dsee.auto"
+                                              loc:Loc.OnContent="toggle.on" loc:Loc.OffContent="toggle.off"
+                                              Toggled="DseeToggle_Toggled" />
+
+                                <TextBlock x:Name="DseeStatusText" TextWrapping="Wrap" />
+
+                                <TextBlock TextWrapping="Wrap"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           loc:Loc.Text="dsee.hint" />
                             </StackPanel>
                         </Border>
                     </StackPanel>

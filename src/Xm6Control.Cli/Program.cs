@@ -52,6 +52,11 @@ internal static class Program
             return await RunListeningAsync(args.Skip(1).ToArray());
         }
 
+        if (args.Length > 0 && args[0].Equals("dsee", StringComparison.OrdinalIgnoreCase))
+        {
+            return await RunDseeAsync(args.Skip(1).ToArray());
+        }
+
         if (args.Length > 0 && args[0].Equals("classic", StringComparison.OrdinalIgnoreCase))
         {
             return await RunClassicAsync(args.Skip(1).ToArray());
@@ -535,6 +540,77 @@ internal static class Program
         Console.WriteLine($"full report: {Path.GetFullPath(Path.Combine("artifacts", "listening-xm6.full.json"))}");
 
         return report.ListeningMode?.Verified == true ? 0 : 1;
+    }
+
+    private static async Task<int> RunDseeAsync(string[] args)
+    {
+        CliOptions options;
+        try
+        {
+            options = CliOptions.Parse(args);
+        }
+        catch (ArgumentException ex)
+        {
+            Console.Error.WriteLine(ex.Message);
+            Console.Error.WriteLine(
+                "Usage: Xm6Control.Cli dsee --dsee auto|off [--address <addr>] [--name WH-1000XM6] --yes");
+            return 1;
+        }
+
+        if (!options.Confirmed || options.DseeAuto is null)
+        {
+            Console.Error.WriteLine(
+                "DSEE changes the headphone state. Use --dsee auto|off with --yes.");
+            return 1;
+        }
+
+        Console.WriteLine("Starting Tandem DSEE write...");
+        var report = await new TandemGattSession().RunAsync(
+            options.ToRequest(applyDsee: true));
+
+        WriteReport(
+            Path.Combine("artifacts", "dsee-xm6.full.json"),
+            JsonOutput.Serialize(report));
+        WriteReport(
+            Path.Combine("docs", "dsee-xm6.json"),
+            JsonOutput.SerializeRedacted(report));
+
+        Console.WriteLine($"status: {report.Status}");
+        Console.WriteLine($"message: {report.Message}");
+        Console.WriteLine($"model: {report.Handshake.Model ?? "not read"}");
+        Console.WriteLine($"firmware: {report.Handshake.Firmware ?? "not read"}");
+
+        if (report.Dsee is { } dsee)
+        {
+            Console.WriteLine($"dseeStatus: {dsee.Status}");
+            Console.WriteLine($"dseeBefore: {FormatDsee(dsee.Before)}");
+            Console.WriteLine($"dseeRequested: {FormatDsee(dsee.Requested)}");
+            Console.WriteLine($"dseeAfter: {FormatDsee(dsee.After)}");
+            Console.WriteLine($"dseeVerified: {dsee.Verified}");
+            Console.WriteLine($"dseeResponse: {dsee.ResponseHex ?? "none"}");
+        }
+
+        if (report.Warnings.Count > 0)
+        {
+            Console.WriteLine("warnings:");
+            foreach (var warning in report.Warnings)
+            {
+                Console.WriteLine($"  - {Redaction.RedactMac(warning)}");
+            }
+        }
+
+        Console.WriteLine($"redacted report: {Path.GetFullPath(Path.Combine("docs", "dsee-xm6.json"))}");
+        Console.WriteLine($"full report: {Path.GetFullPath(Path.Combine("artifacts", "dsee-xm6.full.json"))}");
+
+        return report.Dsee?.Verified == true ? 0 : 1;
+    }
+
+    private static string FormatDsee(TandemDseeState? state)
+    {
+        return state is null
+            ? "not read"
+            : $"setting={state.Setting} enabled={state.Enabled} "
+                + $"effect={state.EffectStatus} type={state.Type}";
     }
 
     private static string FormatListeningMode(TandemListeningModeState? state)

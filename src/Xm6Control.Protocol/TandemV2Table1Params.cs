@@ -312,5 +312,69 @@ public enum TandemOnOffSettingValue : byte
     OutOfRange = 0xFF,
 }
 
+public static class TandemV2FunctionTypes
+{
+    public const byte CodecIndicator = 18;
+    public const byte UpscalingIndicator = 19;
+    public const byte UpscalingAutoOff = 226;
+}
+
+public enum TandemCommonInquiredType : byte
+{
+    ConnectionStatus = 1,
+    AudioCodec = 2,
+    UpscalingEffect = 3,
+    OutOfRange = 0xFF,
+}
+
+public enum TandemAudioCodec : byte
+{
+    Unsettled = 0,
+    Sbc = 1,
+    Aac = 2,
+    Ldac = 3,
+    AptX = 32,
+    AptXHd = 33,
+    Lc3 = 48,
+    Other = 0xFF,
+}
+
+public enum TandemUpscalingType : byte
+{
+    DseeHx = 0,
+    Dsee = 1,
+    DseeHxAi = 2,
+    DseeUltimate = 3,
+    OutOfRange = 0xFF,
+}
+
+public enum TandemUpscalingEffectStatus : byte
+{
+    Off = 0,
+    Valid = 1,
+    Invalid = 2,
+    OutOfRange = 0xFF,
+}
+
+public enum TandemUpscalingSetting : byte
+{
+    Off = 0,
+    Auto = 1,
+    OutOfRange = 0xFF,
+}
+
+public enum TandemEnableState : byte
+{
+    Enable = 0,
+    Disable = 1,
+    OutOfRange = 0xFF,
+}
+
+public sealed record TandemDseeState(
+    TandemUpscalingSetting Setting,
+    TandemEnableState Enabled,
+    TandemUpscalingEffectStatus EffectStatus,
+    TandemUpscalingType Type);
+
 
 

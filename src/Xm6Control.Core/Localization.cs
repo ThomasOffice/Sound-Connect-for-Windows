@@ -32,6 +32,10 @@ public static class Localization
             ["overview.unknown"] = ("未读取", "Not read"),
             ["overview.refresh"] = ("刷新状态", "Refresh"),
             ["overview.updated"] = ("更新于 {0}", "Updated {0}"),
+            ["overview.codec"] = ("编解码器", "Codec"),
+            ["overview.dsee"] = ("DSEE", "DSEE"),
+            ["codec.unsettled"] = ("未确定", "Not settled"),
+            ["codec.other"] = ("其他", "Other"),
 
             ["page.noise.title"] = ("环境声音控制", "Noise control"),
             ["page.noise.subtitle"] = ("当前状态会先读取，再写入，并回读确认。", "Current state is read first, then written, then verified."),
@@ -79,6 +83,21 @@ public static class Localization
             ["listening.room.small"] = ("我的房间", "My room"),
             ["listening.room.middle"] = ("客厅", "Living room"),
             ["listening.room.large"] = ("咖啡馆", "Cafe"),
+
+            ["dsee.title"] = ("DSEE", "DSEE"),
+            ["dsee.auto"] = ("DSEE 自动", "DSEE Auto"),
+            ["dsee.hint"] = (
+                "协议只提供“自动/关”。是否真正生效取决于当前编码和聆听模式；显示“已开启，当前未生效”时代表设置已打开但效果尚未应用。",
+                "The protocol exposes Auto/Off only. Whether the effect applies depends on the current codec and listening mode; \"Enabled, not active\" means the setting is on but the effect is not applied yet."),
+            ["dsee.state.running"] = ("运行中", "Active"),
+            ["dsee.state.enabled"] = ("已开启，当前未生效", "Enabled, not active"),
+            ["dsee.state.off"] = ("关闭", "Off"),
+            ["dsee.state.unknown"] = ("未读取", "Not read"),
+            ["dsee.state.unsupported"] = ("不支持", "Not supported"),
+            ["dsee.type.dseehx"] = ("DSEE HX", "DSEE HX"),
+            ["dsee.type.dsee"] = ("DSEE", "DSEE"),
+            ["dsee.type.ai"] = ("DSEE Extreme", "DSEE Extreme"),
+            ["dsee.type.ultimate"] = ("DSEE Ultimate", "DSEE Ultimate"),
 
             ["page.multipoint.title"] = ("多点连接", "Multipoint"),
             ["page.multipoint.subtitle"] = (
@@ -179,7 +198,7 @@ public static class Localization
 
             ["page.about.title"] = ("关于", "About"),
             ["about.name"] = ("XM6 Control", "XM6 Control"),
-            ["about.version"] = ("版本 1.0.1", "Version 1.0.1"),
+            ["about.version"] = ("版本 1.0.2", "Version 1.0.2"),
             ["about.body"] = (
                 "本机 Sony WH-1000XM6 控制工具，支持环境声音控制（降噪/环境声/关闭、自动环境声音、关注语音）、均衡器、聆听模式、多点连接、自动关机和系统托盘。",
                 "Local Sony WH-1000XM6 control tool: noise control (NC / ambient / off, automatic ambient, focus on voice), EQ, listening mode, multipoint, auto power off, and a system tray."),
@@ -241,6 +260,10 @@ public static class Localization
             ["status.eq.busy"] = ("正在写入均衡器...", "Writing EQ..."),
             ["status.eq.noread"] = ("写入后没有回读到 EQ 状态。", "No EQ state was read back after writing."),
             ["status.listening.busy"] = ("正在写入聆听模式...", "Writing listening mode..."),
+            ["status.dsee.applying"] = ("正在设置 DSEE...", "Applying DSEE..."),
+            ["status.dsee.applied"] = ("DSEE 设置已回读", "DSEE setting verified"),
+            ["status.dsee.unverified"] = ("DSEE 设置未确认", "DSEE setting not verified"),
+            ["status.dsee.unsupported"] = ("未能读取 DSEE 设置", "Could not read the DSEE setting"),
             ["status.listening.current"] = ("耳机当前模式：{0}。", "Headphone mode: {0}."),
             ["status.multipoint.busy"] = ("正在写入多点连接设置...", "Writing multipoint settings..."),
             ["status.multipoint.on"] = ("多点连接已开启。", "Multipoint is on."),

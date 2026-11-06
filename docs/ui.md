@@ -13,12 +13,14 @@ The app is unpackaged and self-contained with Windows App SDK 1.8.
 
 ## Pages
 
-- **概览**: model, firmware, battery, connection state, refresh.
+- **概览**: model, firmware, battery, connection state, active codec, DSEE
+  effect, refresh.
 - **环境声音控制**: NC, ASM, or Off; ambient level, automatic ambient sound
   with sensitivity, voice focus; apply and read-back.
 - **均衡器**: preset, 10 band sliders, apply and read-back. Built-in preset
   defaults are filled from live device read-back; Custom keeps the editable sliders.
-- **聆听模式**: Standard (uses EQ), Background Music with room distance, Cinema.
+- **聆听模式**: Standard (uses EQ), Background Music with room distance,
+  Cinema, plus a separate DSEE box.
 - **多点连接**: multipoint on/off, apply and read-back.
 - **自动关机**: remove-from-ears or disabled; apply and read-back.
 - **情景**: save the current noise, EQ, and listening settings as a named scene,
@@ -34,6 +36,12 @@ The app is unpackaged and self-contained with Windows App SDK 1.8.
   Cafe. This maps to the headphone's `RoomSize` Small/Middle/Large values.
 - Cinema enables the `UPMIX_CINEMA` audio effect and turns BGM off.
 - The page shows the current EQ preset so the Standard/EQ relationship is clear.
+- The DSEE box is separate from the mode radio buttons. Its switch writes
+  Auto or Off and reads the setting and effect back. The protocol has no hard
+  "on": `运行中` means the headphone reports the effect as active, while
+  `已开启，当前未生效` means Auto is set but the current codec or mode does not
+  apply the effect. The box is hidden when the device does not report DSEE
+  setting support.
 
 ## Scenes
 

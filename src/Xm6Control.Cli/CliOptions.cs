@@ -18,6 +18,7 @@ internal sealed class CliOptions
           multipoint             Enable or disable multipoint and read back
           autopower              Set auto power off and read back
           listening              Set standard/BGM/cinema and read back
+          dsee                   Set DSEE auto/off and read back
           pair                   Pair or repair the BLE device
 
         Usage:
@@ -40,6 +41,7 @@ internal sealed class CliOptions
           --autopower <value>    off or removed
           --listening <mode>     standard, bgm, or cinema
           --room <size>          small/myroom, middle/living, or large/cafe
+          --dsee <value>         auto/on or off
           --yes                  Confirm the state-changing write
           --wait <milliseconds>  Notification observation window (default: 5000)
           --output <path>        Redacted report path (default: docs/probe-xm6.json)
@@ -79,6 +81,7 @@ internal sealed class CliOptions
     public bool ApplyListeningMode { get; private set; }
     public TandemListeningMode? ListeningMode { get; private set; }
     public TandemRoomSize? BgmRoomSize { get; private set; }
+    public bool? DseeAuto { get; private set; }
     public bool Confirmed { get; private set; }
     public bool ShowHelp { get; private set; }
 
@@ -88,7 +91,8 @@ internal sealed class CliOptions
         bool applyNcAsm = false,
         bool applyMultipoint = false,
         bool applyAutoPowerOff = false,
-        bool applyListeningMode = false) => new()
+        bool applyListeningMode = false,
+        bool applyDsee = false) => new()
         {
             Name = Name,
             Address = Address,
@@ -114,6 +118,8 @@ internal sealed class CliOptions
             ApplyListeningMode = applyListeningMode,
             ListeningMode = ListeningMode,
             BgmRoomSize = BgmRoomSize,
+            ApplyDsee = applyDsee,
+            DseeAuto = DseeAuto ?? false,
         };
 
     public static CliOptions Parse(string[] args)
@@ -223,6 +229,9 @@ internal sealed class CliOptions
                 case "--room":
                     options.BgmRoomSize = ParseRoomSize(NextValue(args, ref index, argument));
                     break;
+                case "--dsee":
+                    options.DseeAuto = ParseDsee(NextValue(args, ref index, argument));
+                    break;
                 case "--wait":
                     var wait = NextValue(args, ref index, argument);
                     if (!int.TryParse(wait, out var waitMs) || waitMs < 0 || waitMs > 60_000)
@@ -307,6 +316,16 @@ internal sealed class CliOptions
             "large" or "cafe" => TandemRoomSize.Large,
             _ => throw new ArgumentException(
                 "--room must be small/myroom, middle/living, or large/cafe."),
+        };
+    }
+
+    private static bool ParseDsee(string value)
+    {
+        return value.ToLowerInvariant() switch
+        {
+            "auto" or "on" or "enable" or "true" or "1" => true,
+            "off" or "disable" or "false" or "0" => false,
+            _ => throw new ArgumentException("--dsee must be auto/on or off."),
         };
     }
 

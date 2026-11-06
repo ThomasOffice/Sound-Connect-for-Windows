@@ -236,6 +236,73 @@ Source-derived room mapping from `ListeningOptionFragment` and `RoomSize`:
 My Room / Living Room / Cafe. Live verification is pending because the
 headphones were powered off when this feature was added.
 
+### Codec and DSEE indicators
+
+The XM6 advertises function codes 18 (`CODEC_INDICATOR`), 19
+(`UPSCALING_INDICATOR`), and 226 (`UPSCALING_AUTO_OFF`) in
+`CONNECT_RET_SUPPORT_FUNCTION`. Both indicators use the common status command:
+
+```text
+COMMON_GET_STATUS 0x12 / RET_STATUS 0x13 / NTFY_STATUS 0x15
+```
+
+Inquired types:
+
+```text
+AUDIO_CODEC       2
+UPSCALING_EFFECT  3
+```
+
+Requests and replies:
+
+```text
+codec:        12 02   -> 13 02 <codec>
+DSEE effect:  12 03   -> 13 03 <type> <status>
+```
+
+Codec values: `0 = unsettled`, `1 = SBC`, `2 = AAC`, `3 = LDAC`,
+`32 = aptX`, `33 = aptX HD`, `48 = LC3`, `255 = other`.
+
+DSEE effect types: `0 = DSEE HX`, `1 = DSEE`, `2 = DSEE HX AI (DSEE Extreme)`,
+`3 = DSEE Ultimate`. Status: `0 = off`, `1 = valid (active)`, `2 = invalid
+(enabled but not applied)`. The official app shows its DSEE badge only for
+`valid`.
+
+The DSEE setting is an audio feature:
+
+```text
+AUDIO_GET_CAPABILITY 0xE0 01     -> E1 01 <UpscalingType>
+AUDIO_GET_STATUS     0xE2 01     -> E3 01 <EnableDisable>
+AUDIO_GET_PARAM      0xE6 01     -> E7 01 <value>
+AUDIO_SET_PARAM      0xE8 01 <value>
+```
+
+`EnableDisable` is `0 = enable`, `1 = disable`. The setting value is
+`0 = off`, `1 = auto`; the protocol has no hard "on". The app writes `auto`
+and reports the observed effect separately. On WH-1000XM6 the device reports
+function 226, which selects the plain `UPSCALING` path. It does not report the
+`UPSCALING_AUTO_OFF_WITH_STATUS_DISABLE_REASON` variant, so no disable reason
+is available.
+
+Windows' A2DP stack decides the codec; LDAC and aptX need a driver that
+negotiates them. The app reports what the headphone reports, and `unsettled`
+usually means no active audio stream.
+
+Verified on WH-1000XM6 firmware 3.1.5 (AAC link, DSEE running):
+
+```text
+12 02        -> 13 02 02          codec = AAC
+12 03        -> 13 03 02 01       DSEE = DSEE_HX_AI, VALID
+E0 01        -> E1 01 02          capability = DSEE_HX_AI
+E6 01        -> E7 01 01          setting = Auto
+E2 01        -> E3 01 00          enabled = Enable
+E8 01 00     -> E7 01 00          Off written and read back
+E8 01 01     -> E7 01 01          Auto written and read back, effect VALID again
+```
+
+The support-function list reports functions 18, 19, and 226, matching the
+decompiled v2/table1 paths above.
+
 ### Saved scenes (multi-feature write)
 
 A scene applies NC/ASM, EQ, and listening mode in one session, in that order.
@@ -366,6 +433,9 @@ confirm the table set.
 | `CONNECT_RET_DEVICE_INFO` | `0x05` |
 | `CONNECT_GET_SUPPORT_FUNCTION` | `0x06` |
 | `CONNECT_RET_SUPPORT_FUNCTION` | `0x07` |
+| `COMMON_GET_STATUS` | `0x12` |
+| `COMMON_RET_STATUS` | `0x13` |
+| `COMMON_NTFY_STATUS` | `0x15` |
 | `POWER_GET_STATUS` | `0x22` |
 | `POWER_GET_PARAM` | `0x26` |
 | `POWER_SET_PARAM` | `0x28` |

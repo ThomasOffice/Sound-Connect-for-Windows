@@ -50,6 +50,23 @@ public static class TandemV2Table1Messages
     public static byte[] AudioGetParam(TandemAudioInquiredType type) =>
         [(byte)TandemV2Table1Command.AudioGetParam, (byte)type];
 
+    public static byte[] AudioGetStatus(TandemAudioInquiredType type) =>
+        [(byte)TandemV2Table1Command.AudioGetStatus, (byte)type];
+
+    /// <summary>
+    /// The protocol exposes Auto/Off for DSEE, not a hard On. Auto lets the
+    /// headphone enable the effect when the current codec and mode allow it.
+    /// </summary>
+    public static byte[] AudioSetUpscaling(bool auto) =>
+    [
+        (byte)TandemV2Table1Command.AudioSetParam,
+        (byte)TandemAudioInquiredType.Upscaling,
+        (byte)(auto ? TandemUpscalingSetting.Auto : TandemUpscalingSetting.Off),
+    ];
+
+    public static byte[] CommonGetStatus(TandemCommonInquiredType type) =>
+        [(byte)TandemV2Table1Command.CommonGetStatus, (byte)type];
+
     public static byte[] AudioSetBgm(
         bool on,
         TandemRoomSize roomSize,
@@ -143,6 +160,137 @@ public static class TandemV2Table1Messages
 
         item = (TandemUpmixItemId)payload[2];
         return item != TandemUpmixItemId.OutOfRange;
+    }
+
+    public static bool TryParseAudioCodec(
+        ReadOnlySpan<byte> payload,
+        out TandemAudioCodec codec)
+    {
+        codec = TandemAudioCodec.Other;
+
+        if (payload.Length != 3
+            || payload[0] != (byte)TandemV2Table1Command.CommonRetStatus
+            || payload[1] != (byte)TandemCommonInquiredType.AudioCodec)
+        {
+            return false;
+        }
+
+        codec = payload[2] switch
+        {
+            0 => TandemAudioCodec.Unsettled,
+            1 => TandemAudioCodec.Sbc,
+            2 => TandemAudioCodec.Aac,
+            3 => TandemAudioCodec.Ldac,
+            32 => TandemAudioCodec.AptX,
+            33 => TandemAudioCodec.AptXHd,
+            48 => TandemAudioCodec.Lc3,
+            _ => TandemAudioCodec.Other,
+        };
+        return true;
+    }
+
+    public static bool TryParseUpscalingEffect(
+        ReadOnlySpan<byte> payload,
+        out TandemUpscalingEffectStatus status,
+        out TandemUpscalingType type)
+    {
+        status = TandemUpscalingEffectStatus.OutOfRange;
+        type = TandemUpscalingType.OutOfRange;
+
+        if (payload.Length != 4
+            || payload[0] != (byte)TandemV2Table1Command.CommonRetStatus
+            || payload[1] != (byte)TandemCommonInquiredType.UpscalingEffect)
+        {
+            return false;
+        }
+
+        type = payload[2] switch
+        {
+            0 => TandemUpscalingType.DseeHx,
+            1 => TandemUpscalingType.Dsee,
+            2 => TandemUpscalingType.DseeHxAi,
+            3 => TandemUpscalingType.DseeUltimate,
+            _ => TandemUpscalingType.OutOfRange,
+        };
+        status = payload[3] switch
+        {
+            0 => TandemUpscalingEffectStatus.Off,
+            1 => TandemUpscalingEffectStatus.Valid,
+            2 => TandemUpscalingEffectStatus.Invalid,
+            _ => TandemUpscalingEffectStatus.OutOfRange,
+        };
+        return type != TandemUpscalingType.OutOfRange
+            && status != TandemUpscalingEffectStatus.OutOfRange;
+    }
+
+    public static bool TryParseAudioUpscalingStatus(
+        ReadOnlySpan<byte> payload,
+        out TandemEnableState state)
+    {
+        state = TandemEnableState.OutOfRange;
+
+        if (payload.Length != 3
+            || (payload[0] != (byte)TandemV2Table1Command.AudioRetStatus
+                && payload[0] != (byte)TandemV2Table1Command.AudioNtfyStatus)
+            || payload[1] != (byte)TandemAudioInquiredType.Upscaling)
+        {
+            return false;
+        }
+
+        state = payload[2] switch
+        {
+            0 => TandemEnableState.Enable,
+            1 => TandemEnableState.Disable,
+            _ => TandemEnableState.OutOfRange,
+        };
+        return state != TandemEnableState.OutOfRange;
+    }
+
+    public static bool TryParseAudioUpscalingParam(
+        ReadOnlySpan<byte> payload,
+        out TandemUpscalingSetting setting)
+    {
+        setting = TandemUpscalingSetting.OutOfRange;
+
+        if (payload.Length != 3
+            || (payload[0] != (byte)TandemV2Table1Command.AudioRetParam
+                && payload[0] != (byte)TandemV2Table1Command.AudioNtfyParam)
+            || payload[1] != (byte)TandemAudioInquiredType.Upscaling)
+        {
+            return false;
+        }
+
+        setting = payload[2] switch
+        {
+            0 => TandemUpscalingSetting.Off,
+            1 => TandemUpscalingSetting.Auto,
+            _ => TandemUpscalingSetting.OutOfRange,
+        };
+        return setting != TandemUpscalingSetting.OutOfRange;
+    }
+
+    public static bool TryParseAudioUpscalingCapability(
+        ReadOnlySpan<byte> payload,
+        out TandemUpscalingType type)
+    {
+        type = TandemUpscalingType.OutOfRange;
+
+        if (payload.Length != 3
+            || payload[0] != (byte)TandemV2Table1Command.AudioRetCapability
+            || payload[1] != (byte)TandemAudioInquiredType.Upscaling)
+        {
+            return false;
+        }
+
+        type = payload[2] switch
+        {
+            0 => TandemUpscalingType.DseeHx,
+            1 => TandemUpscalingType.Dsee,
+            2 => TandemUpscalingType.DseeHxAi,
+            3 => TandemUpscalingType.DseeUltimate,
+            _ => TandemUpscalingType.OutOfRange,
+        };
+        return type != TandemUpscalingType.OutOfRange;
     }
 
     public static byte[] NcAsmGetCapability(TandemNcAsmInquiredType type) =>
@@ -803,6 +951,41 @@ public static class TandemV2Table1Messages
             && TryParseUpmixSeriesState(payload, out var upmixItem))
         {
             return $"upmix series: {upmixItem}";
+        }
+
+        if (payload.Length == 3
+            && payload[0] == (byte)TandemV2Table1Command.CommonRetStatus
+            && TryParseAudioCodec(payload, out var codec))
+        {
+            return $"codec: {codec}";
+        }
+
+        if (payload.Length == 4
+            && payload[0] == (byte)TandemV2Table1Command.CommonRetStatus
+            && TryParseUpscalingEffect(payload, out var effectStatus, out var effectType))
+        {
+            return $"dsee effect: {effectType} {effectStatus}";
+        }
+
+        if (payload.Length == 3
+            && payload[0] == (byte)TandemV2Table1Command.AudioRetCapability
+            && TryParseAudioUpscalingCapability(payload, out var upscalingCapability))
+        {
+            return $"dsee capability: {upscalingCapability}";
+        }
+
+        if (payload.Length == 3
+            && payload[0] == (byte)TandemV2Table1Command.AudioRetParam
+            && TryParseAudioUpscalingParam(payload, out var upscalingParam))
+        {
+            return $"dsee setting: {upscalingParam}";
+        }
+
+        if (payload.Length == 3
+            && payload[0] == (byte)TandemV2Table1Command.AudioRetStatus
+            && TryParseAudioUpscalingStatus(payload, out var upscalingStatus))
+        {
+            return $"dsee enabled: {upscalingStatus}";
         }
 
         return null;

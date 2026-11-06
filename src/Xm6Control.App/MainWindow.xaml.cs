@@ -115,6 +115,7 @@ public sealed partial class MainWindow : Window
     private DateTime? _lastUpdatedAt;
     private bool _allowClose;
     private bool _busy;
+    private bool _updatingDsee;
     private bool _suppressSettingsSave;
     private string _currentSection = "overview";
 
@@ -1147,6 +1148,61 @@ public sealed partial class MainWindow : Window
         {
             UpdateLastSectionText();
         }
+
+        if (tag is "overview" or "listening")
+        {
+            _ = EnsureIndicatorsAsync();
+        }
+    }
+
+    /// <summary>
+    /// Loads the codec and DSEE indicators once when the user first reaches a
+    /// page that shows them, without waiting for a full snapshot refresh.
+    /// </summary>
+    private async Task EnsureIndicatorsAsync()
+    {
+        if (_busy || _lastReport is null)
+        {
+            return;
+        }
+
+        var current = _lastReport.Snapshot;
+        if (current is not null && current.Codec is not null && current.Dsee is not null)
+        {
+            return;
+        }
+
+        await RunBusyAsync(
+            Localization.Text("status.refreshing"),
+            async () =>
+            {
+                var report = await RunSessionAsync(new ProbeRequest
+                {
+                    QueryIndicators = true,
+                });
+                if (report.Snapshot is not { } loaded)
+                {
+                    return;
+                }
+
+                if (_lastReport.Handshake.SupportFunctions.Count == 0)
+                {
+                    _lastReport.Handshake = report.Handshake;
+                }
+
+                if (report.Status == "ok")
+                {
+                    _lastReport.Status = report.Status;
+                    _lastReport.Message = report.Message;
+                    _lastUpdatedAt = DateTime.Now;
+                }
+
+                _lastReport.Snapshot ??= new TandemDeviceSnapshot();
+                _lastReport.Snapshot.Codec = loaded.Codec ?? _lastReport.Snapshot.Codec;
+                _lastReport.Snapshot.Dsee = loaded.Dsee ?? _lastReport.Snapshot.Dsee;
+                RenderOverview();
+            },
+            showProgress: false);
     }
 
     private void NavigateTo(string tag)
@@ -1322,6 +1378,7 @@ public sealed partial class MainWindow : Window
                 var report = await RunWithRetryAsync(new ProbeRequest
                 {
                     QuerySnapshot = true,
+                    QueryIndicators = _currentSection is "overview" or "listening",
                 });
 
                 ApplyReport(report);
@@ -1538,6 +1595,84 @@ public sealed partial class MainWindow : Window
         });
     }
 
+    private async void DseeToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_updatingDsee)
+        {
+            return;
+        }
+
+        var auto = DseeToggle.IsOn;
+        var previous = _lastReport?.Snapshot?.Dsee;
+        var completed = await RunBusyAsync(
+            Localization.Text("status.dsee.applying"),
+            async () =>
+            {
+                var report = await RunSessionAsync(new ProbeRequest
+                {
+                    ApplyDsee = true,
+                    DseeAuto = auto,
+                });
+
+                if (report.Dsee is not { } change)
+                {
+                    RestoreDsee(previous);
+                    ShowStatus(
+                        InfoBarSeverity.Error,
+                        Localization.Text("status.unverified"),
+                        DescribeFailure(report));
+                    return;
+                }
+
+                if (change.Status == "unsupported")
+                {
+                    RestoreDsee(previous);
+                    ShowStatus(
+                        InfoBarSeverity.Error,
+                        Localization.Text("status.dsee.unsupported"),
+                        report.Message ?? report.Status);
+                    return;
+                }
+
+                if (change.After is { } after)
+                {
+                    _lastReport ??= report;
+                    _lastReport.Snapshot ??= new TandemDeviceSnapshot();
+                    _lastReport.Snapshot.Dsee = after;
+
+                    RenderDsee();
+                    ShowStatus(
+                        change.Verified ? InfoBarSeverity.Success : InfoBarSeverity.Warning,
+                        Localization.Text(
+                            change.Verified ? "status.dsee.applied" : "status.dsee.unverified"),
+                        DseeStatusName(after));
+                }
+                else
+                {
+                    RestoreDsee(previous);
+                    ShowStatus(
+                        InfoBarSeverity.Warning,
+                        Localization.Text("status.dsee.unverified"),
+                        report.Message ?? report.Status);
+                }
+            });
+
+        if (!completed)
+        {
+            RestoreDsee(previous);
+        }
+    }
+
+    private void RestoreDsee(TandemDseeState? previous)
+    {
+        if (previous is not null && _lastReport?.Snapshot is { } snapshot)
+        {
+            snapshot.Dsee = previous;
+        }
+
+        RenderDsee();
+    }
+
     private async void ApplyMultipoint_Click(object sender, RoutedEventArgs e)
     {
         var enabled = MultipointToggle.IsOn;
@@ -1707,9 +1842,115 @@ public sealed partial class MainWindow : Window
         ConnectionText.Text = Localization.Text(
             _lastReport?.Status == "ok" ? "overview.connected" : "overview.disconnected");
         RenderBattery();
+        RenderCodec();
+        RenderDsee();
         LastUpdatedText.Text = _lastUpdatedAt is { } updatedAt
             ? Localization.Format("overview.updated", updatedAt.ToString("HH:mm:ss"))
             : string.Empty;
+    }
+
+    private void RenderCodec()
+    {
+        CodecText.Text = _lastReport?.Snapshot?.Codec switch
+        {
+            TandemAudioCodec.Sbc => "SBC",
+            TandemAudioCodec.Aac => "AAC",
+            TandemAudioCodec.Ldac => "LDAC",
+            TandemAudioCodec.AptX => "aptX",
+            TandemAudioCodec.AptXHd => "aptX HD",
+            TandemAudioCodec.Lc3 => "LC3",
+            TandemAudioCodec.Unsettled => Localization.Text("codec.unsettled"),
+            TandemAudioCodec.Other => Localization.Text("codec.other"),
+            _ => Localization.Text("overview.unknown"),
+        };
+    }
+
+    private void RenderDsee()
+    {
+        var support = SupportsDsee();
+        if (support != true)
+        {
+            DseeOverviewText.Text = support == false
+                ? Localization.Text("dsee.state.unsupported")
+                : Localization.Text("overview.unknown");
+            DseeBox.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        DseeBox.Visibility = Visibility.Visible;
+        var state = _lastReport?.Snapshot?.Dsee;
+        if (state is null)
+        {
+            DseeOverviewText.Text = Localization.Text("overview.unknown");
+            DseeStatusText.Text = Localization.Text("dsee.state.unknown");
+            SetDseeToggle(false);
+            DseeToggle.IsEnabled = false;
+            return;
+        }
+
+        SetDseeToggle(state.Setting == TandemUpscalingSetting.Auto);
+        DseeToggle.IsEnabled = !_busy;
+
+        var status = DseeStatusName(state);
+        DseeStatusText.Text = status;
+        DseeOverviewText.Text = state.Setting == TandemUpscalingSetting.Auto
+            && state.EffectStatus == TandemUpscalingEffectStatus.Valid
+            ? $"{status} · {DseeTypeName(state.Type)}"
+            : status;
+    }
+
+    /// <summary>
+    /// Programmatic switch updates must not look like a user toggle. The flag is
+    /// cleared after the current dispatcher turn so a synchronously raised
+    /// Toggled event cannot start a write.
+    /// </summary>
+    private void SetDseeToggle(bool auto)
+    {
+        _updatingDsee = true;
+        DseeToggle.IsOn = auto;
+        DispatcherQueue.TryEnqueue(() => _updatingDsee = false);
+    }
+
+    private bool? SupportsDsee()
+    {
+        var functions = _lastReport?.Handshake.SupportFunctions;
+        if (functions is null || functions.Count == 0)
+        {
+            return null;
+        }
+
+        return functions.Any(
+            function => function.FunctionType == TandemV2FunctionTypes.UpscalingAutoOff);
+    }
+
+    private static string DseeStatusName(TandemDseeState state)
+    {
+        if (state.Setting == TandemUpscalingSetting.OutOfRange)
+        {
+            return Localization.Text("dsee.state.unknown");
+        }
+
+        if (state.Setting == TandemUpscalingSetting.Off)
+        {
+            return Localization.Text("dsee.state.off");
+        }
+
+        return Localization.Text(
+            state.EffectStatus == TandemUpscalingEffectStatus.Valid
+                ? "dsee.state.running"
+                : "dsee.state.enabled");
+    }
+
+    private static string DseeTypeName(TandemUpscalingType type)
+    {
+        return Localization.Text(type switch
+        {
+            TandemUpscalingType.DseeHx => "dsee.type.dseehx",
+            TandemUpscalingType.Dsee => "dsee.type.dsee",
+            TandemUpscalingType.DseeHxAi => "dsee.type.ai",
+            TandemUpscalingType.DseeUltimate => "dsee.type.ultimate",
+            _ => "dsee.state.unsupported",
+        });
     }
 
     private void RenderBattery()
@@ -1879,11 +2120,14 @@ public sealed partial class MainWindow : Window
         });
     }
 
-    private async Task RunBusyAsync(string message, Func<Task> action, bool showProgress = true)
+    private async Task<bool> RunBusyAsync(
+        string message,
+        Func<Task> action,
+        bool showProgress = true)
     {
         if (_busy)
         {
-            return;
+            return false;
         }
 
         _busy = true;
@@ -1899,6 +2143,7 @@ public sealed partial class MainWindow : Window
         try
         {
             await action();
+            return true;
         }
         catch (Exception ex)
         {
@@ -1906,6 +2151,7 @@ public sealed partial class MainWindow : Window
                 InfoBarSeverity.Error,
                 Localization.Text("status.operationfailed"),
                 ex.Message);
+            return false;
         }
         finally
         {
@@ -1928,6 +2174,9 @@ public sealed partial class MainWindow : Window
         ApplyAutoPowerButton.IsEnabled = enabled;
         MultipointToggle.IsEnabled = enabled;
         AutoPowerCombo.IsEnabled = enabled;
+        DseeToggle.IsEnabled = enabled
+            && DseeBox.Visibility == Visibility.Visible
+            && _lastReport?.Snapshot?.Dsee is not null;
     }
 
     private void ShowStatus(InfoBarSeverity severity, string title, string message)

@@ -25,6 +25,7 @@ public sealed class TandemSessionReport
     public TandemMultipointChange? Multipoint { get; set; }
     public TandemAutoPowerOffChange? AutoPowerOff { get; set; }
     public TandemListeningModeChange? ListeningMode { get; set; }
+    public TandemDseeChange? Dsee { get; set; }
     public TandemSceneChange? Scene { get; set; }
     public TandemDeviceSnapshot? Snapshot { get; set; }
     public List<string> Warnings { get; set; } = [];
@@ -41,6 +42,8 @@ public sealed class TandemDeviceSnapshot
     public TandemAutoPowerOffState? AutoPowerOff { get; set; }
     public IReadOnlyList<TandemAutoPowerOffElement>? AutoPowerOffElements { get; set; }
     public TandemListeningModeState? ListeningMode { get; set; }
+    public TandemAudioCodec? Codec { get; set; }
+    public TandemDseeState? Dsee { get; set; }
 }
 
 public sealed class TandemNcAsmChange
@@ -104,6 +107,16 @@ public sealed class TandemListeningModeChange
     public TandemListeningModeState? Before { get; set; }
     public TandemListeningModeState? Requested { get; set; }
     public TandemListeningModeState? After { get; set; }
+    public string? ResponseHex { get; set; }
+    public bool Verified { get; set; }
+}
+
+public sealed class TandemDseeChange
+{
+    public string Status { get; set; } = "unknown";
+    public TandemDseeState? Before { get; set; }
+    public TandemDseeState? Requested { get; set; }
+    public TandemDseeState? After { get; set; }
     public string? ResponseHex { get; set; }
     public bool Verified { get; set; }
 }

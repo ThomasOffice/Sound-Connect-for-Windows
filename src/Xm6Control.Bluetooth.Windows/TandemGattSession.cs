@@ -42,6 +42,7 @@ public sealed class TandemGattSession
     private TandemSessionReport? _report;
     private TandemGsInquiredType? _multipointGsType;
     private TandemAutoPowerOffCapability? _autoPowerOffCapability;
+    private TandemUpscalingType? _upscalingType;
     private TandemAudioInquiredType? _bgmAudioType;
     private CinemaAudioPath? _cinemaAudioPath;
 
@@ -367,6 +368,11 @@ public sealed class TandemGattSession
             await QuerySnapshotAsync(report, cancellationToken);
         }
 
+        if (request.QueryIndicators && report.Handshake.ProtocolVersion is not null)
+        {
+            await QueryIndicatorsAsync(report, cancellationToken);
+        }
+
         if (request.ApplyEq && report.Handshake.ProtocolVersion is not null)
         {
             await ApplyEqAsync(request, report, cancellationToken);
@@ -390,6 +396,11 @@ public sealed class TandemGattSession
         if (request.ApplyListeningMode && report.Handshake.ProtocolVersion is not null)
         {
             await ApplyListeningModeAsync(request, report, cancellationToken);
+        }
+
+        if (request.ApplyDsee && report.Handshake.ProtocolVersion is not null)
+        {
+            await ApplyDseeAsync(request, report, cancellationToken);
         }
 
         if (request.ApplyScene
@@ -1541,6 +1552,186 @@ public sealed class TandemGattSession
             : "write_sent_unverified";
     }
 
+    private async Task QueryIndicatorsAsync(
+        TandemSessionReport report,
+        CancellationToken cancellationToken)
+    {
+        var snapshot = report.Snapshot ??= new TandemDeviceSnapshot();
+        snapshot.Codec = await ReadCodecAsync(report, cancellationToken);
+        snapshot.Dsee = await ReadDseeStateAsync(report, cancellationToken);
+    }
+
+    private async Task<TandemAudioCodec?> ReadCodecAsync(
+        TandemSessionReport report,
+        CancellationToken cancellationToken)
+    {
+        var response = await SendAndWaitAsync(
+            TandemV2Table1Messages.CommonGetStatus(TandemCommonInquiredType.AudioCodec),
+            [
+                (byte)TandemV2Table1Command.CommonRetStatus,
+                (byte)TandemV2Table1Command.CommonNtfyStatus,
+            ],
+            report,
+            cancellationToken);
+        return response is not null
+            && TandemV2Table1Messages.TryParseAudioCodec(response.Payload, out var codec)
+                ? codec
+                : null;
+    }
+
+    private async Task<TandemUpscalingType?> ReadUpscalingCapabilityAsync(
+        TandemSessionReport report,
+        CancellationToken cancellationToken)
+    {
+        if (_upscalingType is { } cached)
+        {
+            return cached;
+        }
+
+        var response = await SendAndWaitAsync(
+            TandemV2Table1Messages.AudioGetCapability(TandemAudioInquiredType.Upscaling),
+            [(byte)TandemV2Table1Command.AudioRetCapability],
+            report,
+            cancellationToken);
+        if (response is null
+            || !TandemV2Table1Messages.TryParseAudioUpscalingCapability(
+                response.Payload,
+                out var type))
+        {
+            return null;
+        }
+
+        _upscalingType = type;
+        return type;
+    }
+
+    private async Task<TandemDseeState?> ReadDseeStateAsync(
+        TandemSessionReport report,
+        CancellationToken cancellationToken)
+    {
+        var capability = await ReadUpscalingCapabilityAsync(report, cancellationToken);
+        if (capability is null)
+        {
+            return null;
+        }
+
+        var setting = TandemUpscalingSetting.OutOfRange;
+        var param = await SendAndWaitAsync(
+            TandemV2Table1Messages.AudioGetParam(TandemAudioInquiredType.Upscaling),
+            [
+                (byte)TandemV2Table1Command.AudioRetParam,
+                (byte)TandemV2Table1Command.AudioNtfyParam,
+            ],
+            report,
+            cancellationToken);
+        if (param is not null
+            && TandemV2Table1Messages.TryParseAudioUpscalingParam(
+                param.Payload,
+                out var parsedSetting))
+        {
+            setting = parsedSetting;
+        }
+
+        var enabled = TandemEnableState.OutOfRange;
+        var status = await SendAndWaitAsync(
+            TandemV2Table1Messages.AudioGetStatus(TandemAudioInquiredType.Upscaling),
+            [
+                (byte)TandemV2Table1Command.AudioRetStatus,
+                (byte)TandemV2Table1Command.AudioNtfyStatus,
+            ],
+            report,
+            cancellationToken);
+        if (status is not null
+            && TandemV2Table1Messages.TryParseAudioUpscalingStatus(
+                status.Payload,
+                out var parsedEnabled))
+        {
+            enabled = parsedEnabled;
+        }
+
+        var effectStatus = TandemUpscalingEffectStatus.OutOfRange;
+        var effectType = TandemUpscalingType.OutOfRange;
+        var effect = await SendAndWaitAsync(
+            TandemV2Table1Messages.CommonGetStatus(TandemCommonInquiredType.UpscalingEffect),
+            [
+                (byte)TandemV2Table1Command.CommonRetStatus,
+                (byte)TandemV2Table1Command.CommonNtfyStatus,
+            ],
+            report,
+            cancellationToken);
+        if (effect is not null
+            && TandemV2Table1Messages.TryParseUpscalingEffect(
+                effect.Payload,
+                out var parsedStatus,
+                out var parsedType))
+        {
+            effectStatus = parsedStatus;
+            effectType = parsedType;
+        }
+
+        if (setting == TandemUpscalingSetting.OutOfRange
+            && enabled != TandemEnableState.OutOfRange)
+        {
+            // The status flag mirrors the setting on this device; use it when
+            // only the parameter read failed.
+            setting = enabled == TandemEnableState.Enable
+                ? TandemUpscalingSetting.Auto
+                : TandemUpscalingSetting.Off;
+        }
+
+        return new TandemDseeState(
+            setting,
+            enabled,
+            effectStatus,
+            effectType == TandemUpscalingType.OutOfRange ? capability.Value : effectType);
+    }
+
+    private async Task ApplyDseeAsync(
+        ProbeRequest request,
+        TandemSessionReport report,
+        CancellationToken cancellationToken)
+    {
+        var change = new TandemDseeChange();
+        report.Dsee = change;
+
+        var before = await ReadDseeStateAsync(report, cancellationToken);
+        if (before is null)
+        {
+            change.Status = "unsupported";
+            return;
+        }
+
+        change.Before = before;
+        var auto = request.DseeAuto;
+        var requested = before with
+        {
+            Setting = auto ? TandemUpscalingSetting.Auto : TandemUpscalingSetting.Off,
+        };
+        change.Requested = requested;
+
+        var response = await SendAndWaitAsync(
+            TandemV2Table1Messages.AudioSetUpscaling(auto),
+            [
+                (byte)TandemV2Table1Command.AudioRetParam,
+                (byte)TandemV2Table1Command.AudioNtfyParam,
+            ],
+            report,
+            cancellationToken);
+        change.ResponseHex = response is null
+            ? null
+            : Convert.ToHexString(response.Payload).ToLowerInvariant();
+
+        // Give the headphone a moment to commit before reading the setting back.
+        await Task.Delay(TimeSpan.FromMilliseconds(400), cancellationToken);
+
+        var after = await ReadDseeStateAsync(report, cancellationToken);
+        change.After = after;
+        change.Verified = after?.Setting == requested.Setting;
+        change.Status = change.Verified
+            ? "verified"
+            : "write_sent_unverified";
+    }
+
     /// <summary>
     /// Applies a saved scene in one session. Groups run in a fixed order:
     /// NC/ASM, EQ, then listening mode. When the scene targets NC, the ASM layer
@@ -1775,6 +1966,11 @@ public sealed class TandemGattSession
             ("audio cinema param type 4", TandemV2Table1Messages.AudioGetParam(TandemAudioInquiredType.UpmixCinema), (byte)TandemV2Table1Command.AudioRetParam),
             ("audio upmix series capability type 10", TandemV2Table1Messages.AudioGetCapability(TandemAudioInquiredType.UpmixSeries), (byte)TandemV2Table1Command.AudioRetCapability),
             ("audio upmix series param type 10", TandemV2Table1Messages.AudioGetParam(TandemAudioInquiredType.UpmixSeries), (byte)TandemV2Table1Command.AudioRetParam),
+            ("common audio codec", TandemV2Table1Messages.CommonGetStatus(TandemCommonInquiredType.AudioCodec), (byte)TandemV2Table1Command.CommonRetStatus),
+            ("common upscaling effect", TandemV2Table1Messages.CommonGetStatus(TandemCommonInquiredType.UpscalingEffect), (byte)TandemV2Table1Command.CommonRetStatus),
+            ("audio upscaling capability", TandemV2Table1Messages.AudioGetCapability(TandemAudioInquiredType.Upscaling), (byte)TandemV2Table1Command.AudioRetCapability),
+            ("audio upscaling setting", TandemV2Table1Messages.AudioGetParam(TandemAudioInquiredType.Upscaling), (byte)TandemV2Table1Command.AudioRetParam),
+            ("audio upscaling status", TandemV2Table1Messages.AudioGetStatus(TandemAudioInquiredType.Upscaling), (byte)TandemV2Table1Command.AudioRetStatus),
         };
 
         foreach (var query in queries)

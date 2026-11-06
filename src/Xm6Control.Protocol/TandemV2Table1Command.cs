@@ -12,6 +12,10 @@ public enum TandemV2Table1Command : byte
     ConnectGetSupportFunction = 0x06,
     ConnectRetSupportFunction = 0x07,
 
+    CommonGetStatus = 0x12,
+    CommonRetStatus = 0x13,
+    CommonNtfyStatus = 0x15,
+
     PowerGetCapability = 0x20,
     PowerRetCapability = 0x21,
     PowerGetStatus = 0x22,
