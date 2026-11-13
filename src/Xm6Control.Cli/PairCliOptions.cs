@@ -15,7 +15,7 @@ internal sealed class PairCliOptions
             switch (args[index])
             {
                 case "--name":
-                    options.Name = NextValue(args, ref index, args[index]);
+                    options.Name = CliArguments.NextValue(args, ref index, args[index]);
                     break;
                 case "--repair":
                     options.Repair = true;
@@ -29,15 +29,5 @@ internal sealed class PairCliOptions
         }
 
         return options;
-    }
-
-    private static string NextValue(string[] args, ref int index, string option)
-    {
-        if (index + 1 >= args.Length)
-        {
-            throw new ArgumentException($"{option} requires a value.");
-        }
-
-        return args[++index];
     }
 }

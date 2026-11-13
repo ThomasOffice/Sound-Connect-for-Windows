@@ -14,7 +14,7 @@ The app is unpackaged and self-contained with Windows App SDK 1.8.
 ## Pages
 
 - **概览**: model, firmware, battery, connection state, active codec, DSEE
-  effect, refresh.
+  effect.
 - **环境声音控制**: NC, ASM, or Off; ambient level, automatic ambient sound
   with sensitivity, voice focus; apply and read-back.
 - **均衡器**: preset, 10 band sliders, apply and read-back. Built-in preset
@@ -28,6 +28,40 @@ The app is unpackaged and self-contained with Windows App SDK 1.8.
 - **设置**: startup, window, appearance, language, tray, refresh/reconnect, and
   target device.
 - **关于**: feature summary, local-only scope, and GitHub link.
+
+## Layout and window
+
+- The content column fills the window. Every card uses the shared
+  `CardBorderStyle`, so all cards have the same width, padding, border, and
+  corner radius on every page and follow the window width.
+- Page subtitles and hints wrap instead of clipping.
+- The default window size is 920 x 600 logical pixels. A saved placement is
+  restored when **Remember window** is on.
+- The **Window** card in Settings has **恢复默认窗口大小**. It clears the saved
+  position and size, then applies the default centered size; other settings are
+  left untouched.
+
+## Refresh
+
+- Every page shares one **刷新状态** button in the fixed header row, next to the
+  last update time. It stays enabled while reads and writes run and is never
+  greyed out.
+- On the overview the button reads every state the app shows: model, firmware,
+  battery, noise control, EQ, multipoint, auto power off, listening mode, codec,
+  and DSEE. A full read replaces the cached state, so a field that failed shows
+  "未读取".
+- Other pages read only what they display: noise control, EQ, listening mode
+  plus the current EQ and DSEE, multipoint, or auto power off. The scene page
+  reads noise, EQ, and listening mode because a new scene captures those three;
+  settings and about read the battery so the timestamp and tray tooltip stay
+  current.
+- A partial read is merged into the cached state. Fields that were not requested
+  keep their previous values.
+- Clicking refresh during a write queues one read and shows
+  "当前操作完成后会自动刷新状态". Clicks during a read in progress are coalesced
+  into that read.
+- The startup refresh and the automatic refresh timer always read the full
+  state, regardless of the page that is open.
 
 ## Listening mode
 

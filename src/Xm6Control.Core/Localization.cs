@@ -156,6 +156,7 @@ public static class Localization
                 "开机自动启动写入当前用户的启动项；如果托盘图标不可用，窗口会正常显示。",
                 "Start with Windows writes the per-user startup entry. If the tray icon is unavailable the window opens normally."),
             ["settings.window"] = ("窗口", "Window"),
+            ["settings.resetwindow"] = ("恢复默认窗口大小", "Reset window size"),
             ["settings.rememberwindow"] = ("记住窗口位置和大小", "Remember window position and size"),
             ["settings.lastsection"] = ("下次启动打开：{0}", "Opens at startup: {0}"),
             ["settings.appearance"] = ("外观", "Appearance"),
@@ -198,7 +199,7 @@ public static class Localization
 
             ["page.about.title"] = ("关于", "About"),
             ["about.name"] = ("XM6 Control", "XM6 Control"),
-            ["about.version"] = ("版本 1.0.2", "Version 1.0.2"),
+            ["about.version"] = ("版本 1.0.3", "Version 1.0.3"),
             ["about.body"] = (
                 "本机 Sony WH-1000XM6 控制工具，支持环境声音控制（降噪/环境声/关闭、自动环境声音、关注语音）、均衡器、聆听模式、多点连接、自动关机和系统托盘。",
                 "Local Sony WH-1000XM6 control tool: noise control (NC / ambient / off, automatic ambient, focus on voice), EQ, listening mode, multipoint, auto power off, and a system tray."),
@@ -239,7 +240,14 @@ public static class Localization
             ["status.auto.refreshing"] = ("正在自动刷新...", "Refreshing automatically..."),
             ["status.refreshed"] = ("状态已更新", "State updated"),
             ["status.refreshed.body"] = ("已读取耳机当前状态。", "Current headphone state has been read."),
+            ["status.refresh.queued"] = (
+                "当前操作完成后会自动刷新状态。",
+                "The status will refresh when the current operation finishes."),
             ["status.readfailed"] = ("读取失败", "Read failed"),
+            ["status.windowreset.title"] = ("窗口大小已恢复", "Window size reset"),
+            ["status.windowreset"] = (
+                "已恢复为默认的 920 × 600。",
+                "The default 920 × 600 size has been restored."),
             ["status.notfound"] = (
                 "未找到设备「{0}」。请确认耳机已连接，或在设置中修改设备名称。",
                 "Device \"{0}\" was not found. Check the connection or change the device name in Settings."),
@@ -251,7 +259,6 @@ public static class Localization
             ["status.unverified"] = ("写入未确认", "Write not confirmed"),
             ["status.settings.unsaved"] = ("设置未保存", "Settings not saved"),
             ["status.startup.failed"] = ("无法修改开机启动项", "Could not change the startup entry"),
-            ["status.startup.updatefailed"] = ("无法更新开机启动项", "Could not update the startup entry"),
             ["status.startup.registry"] = ("注册表写入失败。", "Registry write failed."),
             ["status.startup.nopath"] = ("无法确定程序路径。", "Could not determine the executable path."),
 

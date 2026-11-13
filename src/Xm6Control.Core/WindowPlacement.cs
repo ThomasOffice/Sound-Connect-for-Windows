@@ -30,8 +30,8 @@ public static class WindowPlacement
 {
     public const int MinWidth = 720;
     public const int MinHeight = 520;
-    public const int DefaultWidth = 1100;
-    public const int DefaultHeight = 780;
+    public const int DefaultWidth = 920;
+    public const int DefaultHeight = 600;
 
     private const double MinimumVisibleFraction = 0.25;
 

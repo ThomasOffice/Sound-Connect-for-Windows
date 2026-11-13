@@ -115,6 +115,8 @@ public sealed partial class MainWindow : Window
     private DateTime? _lastUpdatedAt;
     private bool _allowClose;
     private bool _busy;
+    private bool _refreshing;
+    private bool _refreshQueued;
     private bool _updatingDsee;
     private bool _suppressSettingsSave;
     private string _currentSection = "overview";
@@ -169,7 +171,7 @@ public sealed partial class MainWindow : Window
 
         if (_settings.RefreshOnStart)
         {
-            _ = RefreshAsync(silent: true);
+            _ = RefreshAsync(silent: true, forceFull: true);
         }
     }
 
@@ -239,46 +241,45 @@ public sealed partial class MainWindow : Window
             var trayClick = (TrayClickCombo.SelectedItem as TrayClickOption)?.Value;
             var language = (LanguageCombo.SelectedItem as LanguageOption)?.Value;
 
-            var sensitivities = BuildNoiseSensitivityOptions();
-            NoiseAdaptiveSensitivityCombo.ItemsSource = sensitivities;
-            NoiseAdaptiveSensitivityCombo.SelectedItem =
-                sensitivities.FirstOrDefault(option => option.Value == sensitivity) ?? sensitivities[0];
-
-            var rooms = BuildBgmRoomOptions();
-            BgmRoomCombo.ItemsSource = rooms;
-            BgmRoomCombo.SelectedItem =
-                rooms.FirstOrDefault(option => option.Value == room) ?? rooms[1];
+            ResetCombo<NoiseSensitivityOption>(
+                NoiseAdaptiveSensitivityCombo,
+                BuildNoiseSensitivityOptions(),
+                option => option.Value == sensitivity);
+            ResetCombo<BgmRoomOption>(
+                BgmRoomCombo,
+                BuildBgmRoomOptions(),
+                option => option.Value == room,
+                fallbackIndex: 1);
 
             var autoPowerOptions = BuildAutoPowerOptions();
-            AutoPowerCombo.ItemsSource = autoPowerOptions;
-            AutoPowerCombo.SelectedItem =
-                autoPowerOptions.FirstOrDefault(option => option.Value == autoPower) ?? autoPowerOptions[^1];
+            ResetCombo(
+                AutoPowerCombo,
+                autoPowerOptions,
+                option => option.Value == autoPower,
+                autoPowerOptions.Length - 1);
 
-            var themes = BuildThemeOptions();
-            ThemeCombo.ItemsSource = themes;
-            ThemeCombo.SelectedItem =
-                themes.FirstOrDefault(option => option.Value == theme) ?? themes[0];
+            ResetCombo<ThemeOption>(
+                ThemeCombo,
+                BuildThemeOptions(),
+                option => option.Value == theme);
+            ResetCombo<BackdropOption>(
+                BackdropCombo,
+                BuildBackdropOptions(),
+                option => option.Value == backdrop);
+            ResetCombo<RefreshOption>(
+                AutoRefreshCombo,
+                BuildRefreshOptions(),
+                option => option.Minutes == refresh);
+            ResetCombo<TrayClickOption>(
+                TrayClickCombo,
+                BuildTrayClickOptions(),
+                option => option.Value == trayClick);
 
-            var backdrops = BuildBackdropOptions();
-            BackdropCombo.ItemsSource = backdrops;
-            BackdropCombo.SelectedItem =
-                backdrops.FirstOrDefault(option => option.Value == backdrop) ?? backdrops[0];
-
-            var refreshes = BuildRefreshOptions();
-            AutoRefreshCombo.ItemsSource = refreshes;
-            AutoRefreshCombo.SelectedItem =
-                refreshes.FirstOrDefault(option => option.Minutes == refresh) ?? refreshes[0];
-
-            var trayClicks = BuildTrayClickOptions();
-            TrayClickCombo.ItemsSource = trayClicks;
-            TrayClickCombo.SelectedItem =
-                trayClicks.FirstOrDefault(option => option.Value == trayClick) ?? trayClicks[0];
-
-            var languages = BuildLanguageOptions();
-            LanguageCombo.ItemsSource = languages;
             var currentLanguage = language ?? _settings.Language;
-            LanguageCombo.SelectedItem =
-                languages.FirstOrDefault(option => option.Value == currentLanguage) ?? languages[0];
+            ResetCombo<LanguageOption>(
+                LanguageCombo,
+                BuildLanguageOptions(),
+                option => option.Value == currentLanguage);
         }
         finally
         {
@@ -297,11 +298,11 @@ public sealed partial class MainWindow : Window
             RefreshOnStartToggle.IsOn = _settings.RefreshOnStart;
             RememberWindowToggle.IsOn = _settings.RememberWindow;
 
-            SelectOption(ThemeCombo, BuildThemeOptions(), _settings.Theme);
-            SelectOption(BackdropCombo, BuildBackdropOptions(), _settings.Backdrop);
+            SelectComboValue<ThemeOption>(ThemeCombo, option => option.Value == _settings.Theme);
+            SelectComboValue<BackdropOption>(BackdropCombo, option => option.Value == _settings.Backdrop);
             TrayShowStatusToggle.IsOn = _settings.TrayShowStatus;
-            SelectOption(TrayClickCombo, BuildTrayClickOptions(), _settings.TrayClickAction);
-            SelectOption(AutoRefreshCombo, BuildRefreshOptions(), _settings.AutoRefreshMinutes);
+            SelectComboValue<TrayClickOption>(TrayClickCombo, option => option.Value == _settings.TrayClickAction);
+            SelectComboValue<RefreshOption>(AutoRefreshCombo, option => option.Minutes == _settings.AutoRefreshMinutes);
             AutoReconnectToggle.IsOn = _settings.AutoReconnect;
 
             DeviceNameBox.Text = _settings.DeviceName;
@@ -310,38 +311,50 @@ public sealed partial class MainWindow : Window
             UpdateLastSectionText();
 
             UpdateNoiseControls();
-            ListeningModeRadio.SelectedIndex = 0;
         }
         finally
         {
             _suppressSettingsSave = false;
         }
+    }
 
-        // Keep the Run value pointing at the current executable after a move.
-        if (_settings.LaunchOnStartup
-            && !StartupRegistration.IsEnabled()
-            && !StartupRegistration.TrySet(true, out var error))
+    /// <summary>
+    /// Selects a value in the combo's existing source. Rebuilding the option
+    /// array here would create different instances than the ones the combo
+    /// holds, leaving the selection to record value equality.
+    /// </summary>
+    private static void SelectComboValue<T>(
+        ComboBox combo,
+        Func<T, bool> match,
+        int fallbackIndex = -1)
+        where T : class
+    {
+        if (combo.ItemsSource is not IEnumerable<T> items)
         {
-            ShowStatus(
-                InfoBarSeverity.Warning,
-                Localization.Text("status.startup.updatefailed"),
-                error ?? Localization.Text("status.startup.registry"));
+            return;
+        }
+
+        var selected = items.FirstOrDefault(match);
+        if (selected is null && fallbackIndex >= 0)
+        {
+            selected = items.ElementAtOrDefault(fallbackIndex);
+        }
+
+        if (selected is not null)
+        {
+            combo.SelectedItem = selected;
         }
     }
 
-    private static void SelectOption<T>(ComboBox combo, T[] options, object value)
+    private static void ResetCombo<T>(
+        ComboBox combo,
+        T[] options,
+        Func<T, bool> match,
+        int fallbackIndex = 0)
         where T : class
     {
-        var selected = options.FirstOrDefault(option =>
-            option switch
-            {
-                ThemeOption theme => theme.Value.Equals(value),
-                BackdropOption backdrop => backdrop.Value.Equals(value),
-                TrayClickOption trayClick => trayClick.Value.Equals(value),
-                RefreshOption refresh => refresh.Minutes.Equals(value),
-                _ => false,
-            });
-        combo.SelectedItem = selected ?? options[0];
+        combo.ItemsSource = options;
+        SelectComboValue(combo, match, fallbackIndex);
     }
 
     private void UpdateLastSectionText()
@@ -393,10 +406,7 @@ public sealed partial class MainWindow : Window
 
         if (_lastEq is { } eq)
         {
-            EqCurrentText.Text = Localization.Format(
-                "eq.state",
-                eq.Preset,
-                string.Join(',', eq.Bands));
+            EqCurrentText.Text = FormatEqState(eq);
             ListeningEqText.Text = Localization.Format("eq.current.value", eq.Preset);
         }
         else
@@ -407,12 +417,7 @@ public sealed partial class MainWindow : Window
 
         if (_lastListening is { } listening)
         {
-            var roomText = listening.Mode == TandemListeningMode.BackgroundMusic
-                ? Localization.Format("listening.room.suffix", RoomSizeName(listening.RoomSize))
-                : string.Empty;
-            ListeningCurrentText.Text = Localization.Format(
-                "listening.current.value",
-                ListeningModeName(listening.Mode) + roomText);
+            ListeningCurrentText.Text = FormatListeningState(listening);
         }
         else
         {
@@ -420,11 +425,11 @@ public sealed partial class MainWindow : Window
         }
 
         MultipointStateText.Text = _lastMultipoint is { } multipoint
-            ? Localization.Text(multipoint ? "multipoint.on" : "multipoint.off")
+            ? FormatMultipointState(multipoint)
             : Localization.Text("common.current.state");
 
         AutoPowerStateText.Text = _lastAutoPower is { } autoPower
-            ? Localization.Format("autopower.current.value", AutoPowerName(autoPower.First))
+            ? FormatAutoPowerState(autoPower)
             : Localization.Text("common.current.state");
     }
 
@@ -435,7 +440,7 @@ public sealed partial class MainWindow : Window
             ? Visibility.Visible
             : Visibility.Collapsed;
 
-        foreach (var scene in _settings.Scenes.ToList())
+        foreach (var scene in _settings.Scenes)
         {
             SceneListPanel.Children.Add(BuildSceneRow(scene));
         }
@@ -540,41 +545,27 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        var enabled = NoiseModeRadio.SelectedIndex != 2;
-        var mode = NoiseModeRadio.SelectedIndex == 1 ? TandemNcAsmMode.Asm : TandemNcAsmMode.Nc;
-        var level = (byte)Math.Clamp(Math.Round(AmbientLevelSlider.Value), 1, 20);
-        var sensitivity = (NoiseAdaptiveSensitivityCombo.SelectedItem as NoiseSensitivityOption)
-            ?.Value ?? TandemNoiseAdaptiveSensitivity.Standard;
+        var noise = ReadNoiseSelection();
         var preset = EqPresetCombo.SelectedItem is TandemEqPresetId selected
             ? selected
             : TandemEqPresetId.UserSetting1;
-        var bands = _eqSliders
-            .Select(slider => (int)Math.Clamp(Math.Round(slider.Value), 0, 255))
-            .ToArray();
-        var listeningMode = ListeningModeRadio.SelectedIndex switch
-        {
-            1 => TandemListeningMode.BackgroundMusic,
-            2 => TandemListeningMode.Cinema,
-            _ => TandemListeningMode.Standard,
-        };
-        var room = BgmRoomCombo.SelectedItem is BgmRoomOption option
-            ? option.Value
-            : TandemRoomSize.Middle;
+        var bands = ReadEqBands();
+        var listening = ReadListeningSelection();
 
         var scene = new TandemSceneDefinition(
             Guid.NewGuid().ToString("N")[..8],
             name,
             new TandemSceneNcAsm(
-                mode,
-                enabled,
-                level,
-                VoiceFocusToggle.IsOn,
-                NoiseAdaptiveToggle.IsOn,
-                sensitivity),
+                noise.Mode,
+                noise.Enabled,
+                noise.Level,
+                noise.VoiceFocus,
+                noise.NoiseAdaptive,
+                noise.Sensitivity),
             new TandemSceneEq(
                 preset,
                 preset == TandemEqPresetId.Custom ? bands : null),
-            new TandemSceneListening(listeningMode, room));
+            new TandemSceneListening(listening.Mode, listening.Room));
 
         _settings.Scenes.Add(scene);
         PersistSettings();
@@ -744,7 +735,11 @@ public sealed partial class MainWindow : Window
 
         ApplyTheme();
         ApplyBackdrop();
-        _trayIcon?.SetClickAction(_settings.TrayClickAction);
+        if (_trayIcon is not null)
+        {
+            _trayIcon.ClickAction = _settings.TrayClickAction;
+        }
+
         RefreshTrayTooltip();
         StartRefreshTimer();
         PersistSettings();
@@ -758,7 +753,7 @@ public sealed partial class MainWindow : Window
     private void SaveStartupPreference()
     {
         var desired = LaunchOnStartupToggle.IsOn;
-        if (desired == _settings.LaunchOnStartup && desired == StartupRegistration.IsEnabled())
+        if (desired == _settings.LaunchOnStartup)
         {
             return;
         }
@@ -903,6 +898,15 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        ApplyWindowBounds(
+            _settings.WindowLeft,
+            _settings.WindowTop,
+            _settings.WindowWidth,
+            _settings.WindowHeight);
+    }
+
+    private void ApplyWindowBounds(int? left, int? top, int? width, int? height)
+    {
         try
         {
             var scale = GetUiScale();
@@ -912,12 +916,7 @@ public sealed partial class MainWindow : Window
                 areas.Add(Scale(area, 1 / scale));
             }
 
-            var bounds = WindowPlacement.Resolve(
-                _settings.WindowLeft,
-                _settings.WindowTop,
-                _settings.WindowWidth,
-                _settings.WindowHeight,
-                areas);
+            var bounds = WindowPlacement.Resolve(left, top, width, height, areas);
             var physical = Scale(bounds, scale);
             AppWindow.MoveAndResize(new RectInt32(
                 physical.Left,
@@ -927,8 +926,22 @@ public sealed partial class MainWindow : Window
         }
         catch
         {
-            // Keep the system default placement if anything is unavailable.
+            // Keep the current placement if anything is unavailable.
         }
+    }
+
+    private void ResetWindow_Click(object sender, RoutedEventArgs e)
+    {
+        _settings.WindowLeft = null;
+        _settings.WindowTop = null;
+        _settings.WindowWidth = null;
+        _settings.WindowHeight = null;
+        PersistSettings();
+        ApplyWindowBounds(null, null, null, null);
+        ShowStatus(
+            InfoBarSeverity.Success,
+            Localization.Text("status.windowreset.title"),
+            Localization.Text("status.windowreset"));
     }
 
     /// <summary>
@@ -1062,12 +1075,12 @@ public sealed partial class MainWindow : Window
 
     private async void RefreshTimer_Tick(object? sender, object e)
     {
-        if (_busy)
+        if (_busy || _refreshing)
         {
             return;
         }
 
-        await RefreshAsync(silent: true);
+        await RunRefreshAsync(silent: true, forceFull: true);
     }
 
     private void BuildEqSliders()
@@ -1167,7 +1180,11 @@ public sealed partial class MainWindow : Window
         }
 
         var current = _lastReport.Snapshot;
-        if (current is not null && current.Codec is not null && current.Dsee is not null)
+        var codecLoaded = current?.Codec is not null;
+        // A device that does not report DSEE support never fills the DSEE
+        // state, so do not retry the read on every visit.
+        var dseeLoaded = current?.Dsee is not null || SupportsDsee() == false;
+        if (codecLoaded && dseeLoaded)
         {
             return;
         }
@@ -1176,31 +1193,17 @@ public sealed partial class MainWindow : Window
             Localization.Text("status.refreshing"),
             async () =>
             {
-                var report = await RunSessionAsync(new ProbeRequest
+                var request = new ProbeRequest
                 {
                     QueryIndicators = true,
-                });
-                if (report.Snapshot is not { } loaded)
+                };
+                var report = await RunSessionAsync(request);
+                if (report.Snapshot is null)
                 {
                     return;
                 }
 
-                if (_lastReport.Handshake.SupportFunctions.Count == 0)
-                {
-                    _lastReport.Handshake = report.Handshake;
-                }
-
-                if (report.Status == "ok")
-                {
-                    _lastReport.Status = report.Status;
-                    _lastReport.Message = report.Message;
-                    _lastUpdatedAt = DateTime.Now;
-                }
-
-                _lastReport.Snapshot ??= new TandemDeviceSnapshot();
-                _lastReport.Snapshot.Codec = loaded.Codec ?? _lastReport.Snapshot.Codec;
-                _lastReport.Snapshot.Dsee = loaded.Dsee ?? _lastReport.Snapshot.Dsee;
-                RenderOverview();
+                ApplyReport(report, request, merge: true);
             },
             showProgress: false);
     }
@@ -1210,9 +1213,11 @@ public sealed partial class MainWindow : Window
         var item = Nav.MenuItems
             .OfType<NavigationViewItem>()
             .FirstOrDefault(candidate => string.Equals(candidate.Tag as string, tag, StringComparison.Ordinal));
-        if (item is not null)
+        if (item is not null && !ReferenceEquals(Nav.SelectedItem, item))
         {
+            // SelectionChanged calls ShowSection for this navigation.
             Nav.SelectedItem = item;
+            return;
         }
 
         ShowSection(tag);
@@ -1264,11 +1269,7 @@ public sealed partial class MainWindow : Window
         try
         {
             await _tandemHost.EnsureConnectedAsync(
-                ApplyTargetDevice(new ProbeRequest
-                {
-                    CollectServices = false,
-                    CollectDiagnostics = false,
-                }));
+                ApplyTargetDevice(new ProbeRequest()));
         }
         catch
         {
@@ -1279,10 +1280,6 @@ public sealed partial class MainWindow : Window
     private void ExitFromTray()
     {
         _allowClose = true;
-        PersistWindowState();
-        _trayIcon?.Dispose();
-        _trayIcon = null;
-        _ = _tandemHost.DisposeAsync();
         Close();
     }
 
@@ -1303,10 +1300,6 @@ public sealed partial class MainWindow : Window
             _ = _tandemHost.ReleaseAsync();
             return;
         }
-
-        _trayIcon?.Dispose();
-        _trayIcon = null;
-        _ = _tandemHost.DisposeAsync();
     }
 
     private void PersistWindowState()
@@ -1314,7 +1307,6 @@ public sealed partial class MainWindow : Window
         _settings.LastSection = _currentSection;
         SaveWindowPlacement();
         PersistSettings();
-        UpdateLastSectionText();
     }
 
     private void MainWindow_Closed(object sender, WindowEventArgs args)
@@ -1366,22 +1358,102 @@ public sealed partial class MainWindow : Window
 
     private async void Refresh_Click(object sender, RoutedEventArgs e)
     {
-        await RefreshAsync();
+        if (_refreshing)
+        {
+            // A read is already in flight; one refresh is enough.
+            return;
+        }
+
+        if (_busy)
+        {
+            _refreshQueued = true;
+            ShowStatus(
+                InfoBarSeverity.Informational,
+                Localization.Text("status.busy"),
+                Localization.Text("status.refresh.queued"));
+            return;
+        }
+
+        await RunRefreshAsync(silent: false, forceFull: false);
     }
 
-    private async Task RefreshAsync(bool silent = false)
+    private async Task RunRefreshAsync(bool silent, bool forceFull)
     {
+        _refreshing = true;
+        try
+        {
+            await RefreshAsync(silent, forceFull);
+        }
+        finally
+        {
+            _refreshing = false;
+            await DrainQueuedRefreshAsync();
+        }
+    }
+
+    /// <summary>
+    /// Runs a refresh that was requested while a write was in flight.
+    /// </summary>
+    private async Task DrainQueuedRefreshAsync()
+    {
+        if (!_refreshQueued || _busy || _refreshing)
+        {
+            return;
+        }
+
+        _refreshQueued = false;
+        await RunRefreshAsync(silent: false, forceFull: false);
+    }
+
+    /// <summary>
+    /// The overview reads everything the app displays. Other pages read only
+    /// what they show, so a refresh there stays small and fast.
+    /// </summary>
+    private ProbeRequest CreateRefreshRequest(bool full)
+    {
+        if (full)
+        {
+            return new ProbeRequest
+            {
+                QuerySnapshot = true,
+            };
+        }
+
+        return _currentSection switch
+        {
+            "noise" => new ProbeRequest { QueryNoise = true },
+            "eq" => new ProbeRequest { QueryEq = true },
+            "listening" => new ProbeRequest
+            {
+                QueryListening = true,
+                QueryEq = true,
+                QueryDsee = true,
+            },
+            "multipoint" => new ProbeRequest { QueryMultipoint = true },
+            "autopower" => new ProbeRequest { QueryAutoPowerOff = true },
+            "scenes" => new ProbeRequest
+            {
+                QueryNoise = true,
+                QueryEq = true,
+                QueryListening = true,
+            },
+            // Settings and About show no headphone state; read the battery so
+            // the shared timestamp and the tray tooltip stay current.
+            _ => new ProbeRequest { QueryBattery = true },
+        };
+    }
+
+    private async Task RefreshAsync(bool silent = false, bool forceFull = false)
+    {
+        var full = forceFull || _currentSection is "overview";
+        var request = CreateRefreshRequest(full);
         await RunBusyAsync(
             Localization.Text(silent ? "status.auto.refreshing" : "status.refreshing"),
             async () =>
             {
-                var report = await RunWithRetryAsync(new ProbeRequest
-                {
-                    QuerySnapshot = true,
-                    QueryIndicators = _currentSection is "overview" or "listening",
-                });
+                var report = await RunWithRetryAsync(request);
 
-                ApplyReport(report);
+                ApplyReport(report, request, merge: !full);
                 if (report.Status == "ok")
                 {
                     if (!silent)
@@ -1454,7 +1526,7 @@ public sealed partial class MainWindow : Window
         };
     }
 
-    private async void ApplyNoise_Click(object sender, RoutedEventArgs e)
+    private (bool Enabled, TandemNcAsmMode Mode, byte Level, bool NoiseAdaptive, bool VoiceFocus, TandemNoiseAdaptiveSensitivity Sensitivity) ReadNoiseSelection()
     {
         var enabled = NoiseModeRadio.SelectedIndex != 2;
         var mode = NoiseModeRadio.SelectedIndex == 1
@@ -1463,18 +1535,50 @@ public sealed partial class MainWindow : Window
         var level = (byte)Math.Clamp(Math.Round(AmbientLevelSlider.Value), 1, 20);
         var sensitivity = (NoiseAdaptiveSensitivityCombo.SelectedItem as NoiseSensitivityOption)
             ?.Value ?? TandemNoiseAdaptiveSensitivity.Standard;
+        return (
+            enabled,
+            mode,
+            level,
+            NoiseAdaptiveToggle.IsOn,
+            VoiceFocusToggle.IsOn,
+            sensitivity);
+    }
 
+    private (TandemListeningMode Mode, TandemRoomSize Room) ReadListeningSelection()
+    {
+        var mode = ListeningModeRadio.SelectedIndex switch
+        {
+            1 => TandemListeningMode.BackgroundMusic,
+            2 => TandemListeningMode.Cinema,
+            _ => TandemListeningMode.Standard,
+        };
+        var room = BgmRoomCombo.SelectedItem is BgmRoomOption option
+            ? option.Value
+            : TandemRoomSize.Middle;
+        return (mode, room);
+    }
+
+    private int[] ReadEqBands()
+    {
+        return _eqSliders
+            .Select(slider => (int)Math.Clamp(Math.Round(slider.Value), 0, 255))
+            .ToArray();
+    }
+
+    private async void ApplyNoise_Click(object sender, RoutedEventArgs e)
+    {
+        var selection = ReadNoiseSelection();
         await RunBusyAsync(Localization.Text("status.noise.busy"), async () =>
         {
             var report = await RunSessionAsync(new ProbeRequest
             {
                 ApplyNcAsm = true,
-                NcAsmMode = enabled ? mode : null,
-                NcAsmEnabled = enabled,
-                NcAsmLevel = level,
-                NcAsmVoiceFocus = VoiceFocusToggle.IsOn,
-                NcAsmNoiseAdaptive = NoiseAdaptiveToggle.IsOn,
-                NcAsmSensitivity = sensitivity,
+                NcAsmMode = selection.Enabled ? selection.Mode : null,
+                NcAsmEnabled = selection.Enabled,
+                NcAsmLevel = selection.Level,
+                NcAsmVoiceFocus = selection.VoiceFocus,
+                NcAsmNoiseAdaptive = selection.NoiseAdaptive,
+                NcAsmSensitivity = selection.Sensitivity,
             });
 
             if (report.NcAsm?.After is { } after)
@@ -1500,9 +1604,9 @@ public sealed partial class MainWindow : Window
         var preset = EqPresetCombo.SelectedItem is TandemEqPresetId selected
             ? selected
             : TandemEqPresetId.UserSetting1;
-        var bands = _eqSliders
-            .Select(slider => (byte)Math.Clamp(Math.Round(slider.Value), 0, 255))
-            .ToArray();
+        var bands = preset == TandemEqPresetId.Custom
+            ? ReadEqBands().Select(band => (byte)band).ToArray()
+            : null;
 
         await RunBusyAsync(Localization.Text("status.eq.busy"), async () =>
         {
@@ -1510,7 +1614,7 @@ public sealed partial class MainWindow : Window
             {
                 ApplyEq = true,
                 EqPreset = preset,
-                EqBands = preset == TandemEqPresetId.Custom ? bands : null,
+                EqBands = bands,
             });
 
             if (report.Eq?.After is { } after)
@@ -1538,30 +1642,26 @@ public sealed partial class MainWindow : Window
     {
         if (BgmRoomCombo is not null)
         {
-            BgmRoomCombo.IsEnabled = !_busy
-                && ListeningModeRadio.SelectedIndex == 1;
+            UpdateBgmRoomEnabled();
         }
+    }
+
+    private void UpdateBgmRoomEnabled()
+    {
+        BgmRoomCombo.IsEnabled = !_busy && ListeningModeRadio.SelectedIndex == 1;
     }
 
     private async void ApplyListening_Click(object sender, RoutedEventArgs e)
     {
-        var mode = ListeningModeRadio.SelectedIndex switch
-        {
-            1 => TandemListeningMode.BackgroundMusic,
-            2 => TandemListeningMode.Cinema,
-            _ => TandemListeningMode.Standard,
-        };
-        var room = BgmRoomCombo.SelectedItem is BgmRoomOption option
-            ? option.Value
-            : TandemRoomSize.Middle;
+        var selection = ReadListeningSelection();
 
         await RunBusyAsync(Localization.Text("status.listening.busy"), async () =>
         {
             var report = await RunSessionAsync(new ProbeRequest
             {
                 ApplyListeningMode = true,
-                ListeningMode = mode,
-                BgmRoomSize = room,
+                ListeningMode = selection.Mode,
+                BgmRoomSize = selection.Room,
             });
 
             var change = report.ListeningMode;
@@ -1572,15 +1672,15 @@ public sealed partial class MainWindow : Window
 
             if (change?.Verified == true)
             {
-                var roomSuffix = mode == TandemListeningMode.BackgroundMusic
-                    ? Localization.Format("status.listening.room", RoomSizeName(room))
+                var roomSuffix = selection.Mode == TandemListeningMode.BackgroundMusic
+                    ? Localization.Format("status.listening.room", RoomSizeName(selection.Room))
                     : string.Empty;
                 ShowStatus(
                     InfoBarSeverity.Success,
                     Localization.Text("status.applied"),
                     Localization.Format(
                         "status.listening.applied",
-                        ListeningModeName(change.After?.Mode ?? mode),
+                        ListeningModeName(change.After?.Mode ?? selection.Mode),
                         roomSuffix));
             }
             else
@@ -1790,8 +1890,14 @@ public sealed partial class MainWindow : Window
         AmbientLevelText.Text = ((int)Math.Round(e.NewValue)).ToString();
     }
 
-    private void ApplyReport(TandemSessionReport report)
+    private void ApplyReport(TandemSessionReport report, ProbeRequest request, bool merge = false)
     {
+        var incoming = report.Snapshot;
+        if (merge)
+        {
+            report = MergeReport(report);
+        }
+
         _lastReport = report;
         if (report.Status == "ok")
         {
@@ -1800,39 +1906,89 @@ public sealed partial class MainWindow : Window
 
         RenderOverview();
 
-        if (report.Snapshot is { } snapshot)
+        if (incoming is not null)
         {
-            if (snapshot.NcAsm is { } ncAsm)
+            var full = request.QuerySnapshot;
+            if ((full || request.QueryNoise) && incoming.NcAsm is { } ncAsm)
             {
                 UpdateNoise(ncAsm);
             }
 
-            if (snapshot.Eq is { } eq)
+            if ((full || request.QueryEq) && incoming.Eq is { } eq)
             {
                 UpdateEq(eq);
             }
 
-            if (snapshot.MultipointEnabled is { } multipoint)
+            if ((full || request.QueryMultipoint) && incoming.MultipointEnabled is { } multipoint)
             {
                 UpdateMultipoint(multipoint);
             }
 
-            if (snapshot.AutoPowerOff is { } autoPowerOff)
+            if ((full || request.QueryAutoPowerOff) && incoming.AutoPowerOff is { } autoPowerOff)
             {
                 UpdateAutoPower(autoPowerOff);
             }
 
-            if (snapshot.ListeningMode is { } listeningMode)
+            if ((full || request.QueryListening) && incoming.ListeningMode is { } listeningMode)
             {
                 UpdateListening(listeningMode);
             }
         }
-        else
-        {
-            RenderBattery();
-        }
 
         RefreshTrayTooltip();
+    }
+
+    /// <summary>
+    /// Applies a partial refresh to the retained report. A page refresh only
+    /// asks for the fields that page shows, so every other field keeps its
+    /// previous value instead of being reset to "not read".
+    /// </summary>
+    private TandemSessionReport MergeReport(TandemSessionReport report)
+    {
+        if (_lastReport is not { } retained)
+        {
+            return report;
+        }
+
+        retained.Status = report.Status;
+        retained.Message = report.Message;
+
+        // A partial refresh on a fresh connection may not have re-read the
+        // identity, so keep everything the retained handshake already knows.
+        var handshake = retained.Handshake;
+        if (handshake.Model is null)
+        {
+            handshake.Model = report.Handshake.Model;
+        }
+
+        if (handshake.Firmware is null)
+        {
+            handshake.Firmware = report.Handshake.Firmware;
+        }
+
+        if (handshake.SupportFunctions.Count == 0)
+        {
+            handshake.SupportFunctions = report.Handshake.SupportFunctions;
+        }
+
+        if (report.Snapshot is not { } incoming)
+        {
+            return retained;
+        }
+
+        retained.Snapshot ??= new TandemDeviceSnapshot();
+        var target = retained.Snapshot;
+        target.NcAsm = incoming.NcAsm ?? target.NcAsm;
+        target.Eq = incoming.Eq ?? target.Eq;
+        target.BatteryPercent = incoming.BatteryPercent ?? target.BatteryPercent;
+        target.BatteryStatus = incoming.BatteryStatus ?? target.BatteryStatus;
+        target.MultipointEnabled = incoming.MultipointEnabled ?? target.MultipointEnabled;
+        target.AutoPowerOff = incoming.AutoPowerOff ?? target.AutoPowerOff;
+        target.AutoPowerOffElements = incoming.AutoPowerOffElements ?? target.AutoPowerOffElements;
+        target.ListeningMode = incoming.ListeningMode ?? target.ListeningMode;
+        target.Codec = incoming.Codec ?? target.Codec;
+        target.Dsee = incoming.Dsee ?? target.Dsee;
+        return retained;
     }
 
     private void RenderOverview()
@@ -1874,6 +2030,7 @@ public sealed partial class MainWindow : Window
                 ? Localization.Text("dsee.state.unsupported")
                 : Localization.Text("overview.unknown");
             DseeBox.Visibility = Visibility.Collapsed;
+            UpdateDseeToggleState();
             return;
         }
 
@@ -1884,12 +2041,12 @@ public sealed partial class MainWindow : Window
             DseeOverviewText.Text = Localization.Text("overview.unknown");
             DseeStatusText.Text = Localization.Text("dsee.state.unknown");
             SetDseeToggle(false);
-            DseeToggle.IsEnabled = false;
+            UpdateDseeToggleState();
             return;
         }
 
         SetDseeToggle(state.Setting == TandemUpscalingSetting.Auto);
-        DseeToggle.IsEnabled = !_busy;
+        UpdateDseeToggleState();
 
         var status = DseeStatusName(state);
         DseeStatusText.Text = status;
@@ -1897,6 +2054,13 @@ public sealed partial class MainWindow : Window
             && state.EffectStatus == TandemUpscalingEffectStatus.Valid
             ? $"{status} · {DseeTypeName(state.Type)}"
             : status;
+    }
+
+    private void UpdateDseeToggleState()
+    {
+        DseeToggle.IsEnabled = !_busy
+            && DseeBox.Visibility == Visibility.Visible
+            && _lastReport?.Snapshot?.Dsee is not null;
     }
 
     /// <summary>
@@ -1960,6 +2124,25 @@ public sealed partial class MainWindow : Window
             : Localization.Text("overview.unknown");
     }
 
+    private static string FormatEqState(TandemEqState state) =>
+        Localization.Format("eq.state", state.Preset, string.Join(',', state.Bands));
+
+    private static string FormatListeningState(TandemListeningModeState state)
+    {
+        var roomText = state.Mode == TandemListeningMode.BackgroundMusic
+            ? Localization.Format("listening.room.suffix", RoomSizeName(state.RoomSize))
+            : string.Empty;
+        return Localization.Format(
+            "listening.current.value",
+            ListeningModeName(state.Mode) + roomText);
+    }
+
+    private static string FormatMultipointState(bool enabled) =>
+        Localization.Text(enabled ? "multipoint.on" : "multipoint.off");
+
+    private static string FormatAutoPowerState(TandemAutoPowerOffState state) =>
+        Localization.Format("autopower.current.value", AutoPowerName(state.First));
+
     private void UpdateNoise(TandemNcAsmState state)
     {
         _lastNoise = state;
@@ -1971,12 +2154,9 @@ public sealed partial class MainWindow : Window
         AmbientLevelText.Text = state.Level.ToString();
         NoiseAdaptiveToggle.IsOn = state.NoiseAdaptiveOnOff == TandemNcAsmOnOffValue.On;
         VoiceFocusToggle.IsOn = state.AmbientMode == TandemAmbientSoundMode.Voice;
-        var sensitivity = BuildNoiseSensitivityOptions().FirstOrDefault(
+        SelectComboValue<NoiseSensitivityOption>(
+            NoiseAdaptiveSensitivityCombo,
             item => item.Value == state.Sensitivity);
-        if (sensitivity is not null)
-        {
-            NoiseAdaptiveSensitivityCombo.SelectedItem = sensitivity;
-        }
 
         NoiseCurrentText.Text = FormatNoiseState(state);
         UpdateNoiseControls();
@@ -2022,10 +2202,7 @@ public sealed partial class MainWindow : Window
             _eqPresetBands[state.Preset] = state.Bands;
         }
 
-        EqCurrentText.Text = Localization.Format(
-            "eq.state",
-            state.Preset,
-            string.Join(',', state.Bands));
+        EqCurrentText.Text = FormatEqState(state);
         ListeningEqText.Text = Localization.Format("eq.current.value", state.Preset);
         ApplyEqBandsToSliders(state.Bands);
     }
@@ -2048,15 +2225,11 @@ public sealed partial class MainWindow : Window
             _ => 0,
         };
 
-        var rooms = BuildBgmRoomOptions();
-        var room = rooms.FirstOrDefault(item => item.Value == state.RoomSize) ?? rooms[1];
-        BgmRoomCombo.SelectedItem = room;
-        var roomText = state.Mode == TandemListeningMode.BackgroundMusic
-            ? Localization.Format("listening.room.suffix", room.Label)
-            : string.Empty;
-        ListeningCurrentText.Text = Localization.Format(
-            "listening.current.value",
-            ListeningModeName(state.Mode) + roomText);
+        SelectComboValue<BgmRoomOption>(
+            BgmRoomCombo,
+            item => item.Value == state.RoomSize,
+            fallbackIndex: 1);
+        ListeningCurrentText.Text = FormatListeningState(state);
     }
 
     private static string ListeningModeName(TandemListeningMode? mode)
@@ -2085,19 +2258,14 @@ public sealed partial class MainWindow : Window
     {
         _lastMultipoint = enabled;
         MultipointToggle.IsOn = enabled;
-        MultipointStateText.Text = Localization.Text(enabled ? "multipoint.on" : "multipoint.off");
+        MultipointStateText.Text = FormatMultipointState(enabled);
     }
 
     private void UpdateAutoPower(TandemAutoPowerOffState state)
     {
         _lastAutoPower = state;
-        var option = BuildAutoPowerOptions().FirstOrDefault(item => item.Value == state.First);
-        if (option is not null)
-        {
-            AutoPowerCombo.SelectedItem = option;
-        }
-
-        AutoPowerStateText.Text = Localization.Format("autopower.current.value", AutoPowerName(state.First));
+        SelectComboValue<AutoPowerOption>(AutoPowerCombo, item => item.Value == state.First);
+        AutoPowerStateText.Text = FormatAutoPowerState(state);
     }
 
     private static string AutoPowerName(TandemAutoPowerOffElement? element)
@@ -2157,26 +2325,27 @@ public sealed partial class MainWindow : Window
         {
             _busy = false;
             SetButtonsEnabled(true);
+            if (_refreshQueued && !_refreshing)
+            {
+                _ = DrainQueuedRefreshAsync();
+            }
         }
     }
 
     private void SetButtonsEnabled(bool enabled)
     {
-        RefreshButton.IsEnabled = enabled;
         ApplyNoiseButton.IsEnabled = enabled;
         NoiseModeRadio.IsEnabled = enabled;
         UpdateNoiseControls();
         ApplyEqButton.IsEnabled = enabled;
         ApplyListeningButton.IsEnabled = enabled;
         ListeningModeRadio.IsEnabled = enabled;
-        BgmRoomCombo.IsEnabled = enabled && ListeningModeRadio.SelectedIndex == 1;
+        UpdateBgmRoomEnabled();
         ApplyMultipointButton.IsEnabled = enabled;
         ApplyAutoPowerButton.IsEnabled = enabled;
         MultipointToggle.IsEnabled = enabled;
         AutoPowerCombo.IsEnabled = enabled;
-        DseeToggle.IsEnabled = enabled
-            && DseeBox.Visibility == Visibility.Visible
-            && _lastReport?.Snapshot?.Dsee is not null;
+        UpdateDseeToggleState();
     }
 
     private void ShowStatus(InfoBarSeverity severity, string title, string message)

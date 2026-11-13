@@ -114,8 +114,7 @@ internal static class Program
         Console.WriteLine("Starting Classic RFCOMM Tandem session...");
         var report = await new TandemClassicSession().RunAsync(options.ToRequest());
 
-        WriteReport(Path.Combine("artifacts", "tandem-classic.full.json"), JsonOutput.Serialize(report));
-        WriteReport(Path.Combine("docs", "tandem-classic.json"), JsonOutput.SerializeRedacted(report));
+        var (redacted, _) = WriteSessionReports(report, "tandem-classic");
 
         Console.WriteLine($"status: {report.Status}");
         Console.WriteLine($"message: {report.Message}");
@@ -128,25 +127,10 @@ internal static class Program
         Console.WriteLine($"supportFunctions: {report.Handshake.SupportFunctions.Count}");
         Console.WriteLine($"frames: {report.Frames.Count}");
 
-        if (report.Warnings.Count > 0)
-        {
-            Console.WriteLine("warnings:");
-            foreach (var warning in report.Warnings)
-            {
-                Console.WriteLine($"  - {Redaction.RedactMac(warning)}");
-            }
-        }
+        PrintWarnings(report.Warnings);
+        PrintErrors(report.Errors);
 
-        if (report.Errors.Count > 0)
-        {
-            Console.WriteLine("errors:");
-            foreach (var error in report.Errors)
-            {
-                Console.WriteLine($"  - {Redaction.RedactMac(error)}");
-            }
-        }
-
-        Console.WriteLine($"redacted report: {Path.GetFullPath(Path.Combine("docs", "tandem-classic.json"))}");
+        Console.WriteLine($"redacted report: {Path.GetFullPath(redacted)}");
         return report.Status == "ok" ? 0 : 1;
     }
 
@@ -170,12 +154,7 @@ internal static class Program
         var report = await new TandemGattSession().RunAsync(options.ToRequest(queryFeatures));
         var stem = queryFeatures ? "features-xm6" : "tandem-xm6";
 
-        WriteReport(
-            Path.Combine("artifacts", $"{stem}.full.json"),
-            JsonOutput.Serialize(report));
-        WriteReport(
-            Path.Combine("docs", $"{stem}.json"),
-            JsonOutput.SerializeRedacted(report));
+        var (redacted, full) = WriteSessionReports(report, stem);
 
         Console.WriteLine($"status: {report.Status}");
         Console.WriteLine($"message: {report.Message}");
@@ -201,26 +180,9 @@ internal static class Program
             }
         }
 
-        if (report.Warnings.Count > 0)
-        {
-            Console.WriteLine("warnings:");
-            foreach (var warning in report.Warnings)
-            {
-                Console.WriteLine($"  - {Redaction.RedactMac(warning)}");
-            }
-        }
-
-        if (report.Errors.Count > 0)
-        {
-            Console.WriteLine("errors:");
-            foreach (var error in report.Errors)
-            {
-                Console.WriteLine($"  - {Redaction.RedactMac(error)}");
-            }
-        }
-
-        Console.WriteLine($"redacted report: {Path.GetFullPath(Path.Combine("docs", $"{stem}.json"))}");
-        Console.WriteLine($"full report: {Path.GetFullPath(Path.Combine("artifacts", $"{stem}.full.json"))}");
+        PrintWarnings(report.Warnings);
+        PrintErrors(report.Errors);
+        PrintReportPaths(redacted, full);
 
         return report.Status == "ok" ? 0 : 1;
     }
@@ -249,18 +211,8 @@ internal static class Program
         Console.WriteLine("Starting Tandem EQ write...");
         var report = await new TandemGattSession().RunAsync(options.ToRequest(applyEq: true));
 
-        WriteReport(
-            Path.Combine("artifacts", "eq-xm6.full.json"),
-            JsonOutput.Serialize(report));
-        WriteReport(
-            Path.Combine("docs", "eq-xm6.json"),
-            JsonOutput.SerializeRedacted(report));
-
-        Console.WriteLine($"status: {report.Status}");
-        Console.WriteLine($"message: {report.Message}");
-        Console.WriteLine($"tandemServicePresent: {report.TandemServicePresent}");
-        Console.WriteLine($"model: {report.Handshake.Model ?? "not read"}");
-        Console.WriteLine($"firmware: {report.Handshake.Firmware ?? "not read"}");
+        var (redacted, full) = WriteSessionReports(report, "eq-xm6");
+        PrintSessionSummary(report, includeService: true);
 
         if (report.Eq is { } eq)
         {
@@ -272,17 +224,8 @@ internal static class Program
             Console.WriteLine($"eqResponse: {eq.ResponseHex ?? "none"}");
         }
 
-        if (report.Warnings.Count > 0)
-        {
-            Console.WriteLine("warnings:");
-            foreach (var warning in report.Warnings)
-            {
-                Console.WriteLine($"  - {Redaction.RedactMac(warning)}");
-            }
-        }
-
-        Console.WriteLine($"redacted report: {Path.GetFullPath(Path.Combine("docs", "eq-xm6.json"))}");
-        Console.WriteLine($"full report: {Path.GetFullPath(Path.Combine("artifacts", "eq-xm6.full.json"))}");
+        PrintWarnings(report.Warnings);
+        PrintReportPaths(redacted, full);
 
         return report.Eq?.Verified == true ? 0 : 1;
     }
@@ -311,18 +254,8 @@ internal static class Program
         Console.WriteLine("Starting Tandem NC/ASM write...");
         var report = await new TandemGattSession().RunAsync(options.ToRequest(applyNcAsm: true));
 
-        WriteReport(
-            Path.Combine("artifacts", "anc-xm6.full.json"),
-            JsonOutput.Serialize(report));
-        WriteReport(
-            Path.Combine("docs", "anc-xm6.json"),
-            JsonOutput.SerializeRedacted(report));
-
-        Console.WriteLine($"status: {report.Status}");
-        Console.WriteLine($"message: {report.Message}");
-        Console.WriteLine($"tandemServicePresent: {report.TandemServicePresent}");
-        Console.WriteLine($"model: {report.Handshake.Model ?? "not read"}");
-        Console.WriteLine($"firmware: {report.Handshake.Firmware ?? "not read"}");
+        var (redacted, full) = WriteSessionReports(report, "anc-xm6");
+        PrintSessionSummary(report, includeService: true);
 
         if (report.NcAsm is { } ncAsm)
         {
@@ -334,17 +267,8 @@ internal static class Program
             Console.WriteLine($"ncAsmResponse: {ncAsm.ResponseHex ?? "none"}");
         }
 
-        if (report.Warnings.Count > 0)
-        {
-            Console.WriteLine("warnings:");
-            foreach (var warning in report.Warnings)
-            {
-                Console.WriteLine($"  - {Redaction.RedactMac(warning)}");
-            }
-        }
-
-        Console.WriteLine($"redacted report: {Path.GetFullPath(Path.Combine("docs", "anc-xm6.json"))}");
-        Console.WriteLine($"full report: {Path.GetFullPath(Path.Combine("artifacts", "anc-xm6.full.json"))}");
+        PrintWarnings(report.Warnings);
+        PrintReportPaths(redacted, full);
 
         return report.NcAsm?.Verified == true ? 0 : 1;
     }
@@ -375,17 +299,8 @@ internal static class Program
         var report = await new TandemGattSession().RunAsync(
             options.ToRequest(applyMultipoint: true));
 
-        WriteReport(
-            Path.Combine("artifacts", "multipoint-xm6.full.json"),
-            JsonOutput.Serialize(report));
-        WriteReport(
-            Path.Combine("docs", "multipoint-xm6.json"),
-            JsonOutput.SerializeRedacted(report));
-
-        Console.WriteLine($"status: {report.Status}");
-        Console.WriteLine($"message: {report.Message}");
-        Console.WriteLine($"model: {report.Handshake.Model ?? "not read"}");
-        Console.WriteLine($"firmware: {report.Handshake.Firmware ?? "not read"}");
+        var (redacted, full) = WriteSessionReports(report, "multipoint-xm6");
+        PrintSessionSummary(report);
 
         if (report.Multipoint is { } multipoint)
         {
@@ -397,17 +312,8 @@ internal static class Program
             Console.WriteLine($"multipointResponse: {multipoint.ResponseHex ?? "none"}");
         }
 
-        if (report.Warnings.Count > 0)
-        {
-            Console.WriteLine("warnings:");
-            foreach (var warning in report.Warnings)
-            {
-                Console.WriteLine($"  - {Redaction.RedactMac(warning)}");
-            }
-        }
-
-        Console.WriteLine($"redacted report: {Path.GetFullPath(Path.Combine("docs", "multipoint-xm6.json"))}");
-        Console.WriteLine($"full report: {Path.GetFullPath(Path.Combine("artifacts", "multipoint-xm6.full.json"))}");
+        PrintWarnings(report.Warnings);
+        PrintReportPaths(redacted, full);
 
         return report.Multipoint?.Verified == true ? 0 : 1;
     }
@@ -438,17 +344,8 @@ internal static class Program
         var report = await new TandemGattSession().RunAsync(
             options.ToRequest(applyAutoPowerOff: true));
 
-        WriteReport(
-            Path.Combine("artifacts", "autopower-xm6.full.json"),
-            JsonOutput.Serialize(report));
-        WriteReport(
-            Path.Combine("docs", "autopower-xm6.json"),
-            JsonOutput.SerializeRedacted(report));
-
-        Console.WriteLine($"status: {report.Status}");
-        Console.WriteLine($"message: {report.Message}");
-        Console.WriteLine($"model: {report.Handshake.Model ?? "not read"}");
-        Console.WriteLine($"firmware: {report.Handshake.Firmware ?? "not read"}");
+        var (redacted, full) = WriteSessionReports(report, "autopower-xm6");
+        PrintSessionSummary(report);
 
         if (report.AutoPowerOff is { } autoPowerOff)
         {
@@ -464,17 +361,8 @@ internal static class Program
             }
         }
 
-        if (report.Warnings.Count > 0)
-        {
-            Console.WriteLine("warnings:");
-            foreach (var warning in report.Warnings)
-            {
-                Console.WriteLine($"  - {Redaction.RedactMac(warning)}");
-            }
-        }
-
-        Console.WriteLine($"redacted report: {Path.GetFullPath(Path.Combine("docs", "autopower-xm6.json"))}");
-        Console.WriteLine($"full report: {Path.GetFullPath(Path.Combine("artifacts", "autopower-xm6.full.json"))}");
+        PrintWarnings(report.Warnings);
+        PrintReportPaths(redacted, full);
 
         return report.AutoPowerOff?.Verified == true ? 0 : 1;
     }
@@ -505,17 +393,8 @@ internal static class Program
         var report = await new TandemGattSession().RunAsync(
             options.ToRequest(applyListeningMode: true));
 
-        WriteReport(
-            Path.Combine("artifacts", "listening-xm6.full.json"),
-            JsonOutput.Serialize(report));
-        WriteReport(
-            Path.Combine("docs", "listening-xm6.json"),
-            JsonOutput.SerializeRedacted(report));
-
-        Console.WriteLine($"status: {report.Status}");
-        Console.WriteLine($"message: {report.Message}");
-        Console.WriteLine($"model: {report.Handshake.Model ?? "not read"}");
-        Console.WriteLine($"firmware: {report.Handshake.Firmware ?? "not read"}");
+        var (redacted, full) = WriteSessionReports(report, "listening-xm6");
+        PrintSessionSummary(report);
 
         if (report.ListeningMode is { } listening)
         {
@@ -527,17 +406,8 @@ internal static class Program
             Console.WriteLine($"listeningResponse: {listening.ResponseHex ?? "none"}");
         }
 
-        if (report.Warnings.Count > 0)
-        {
-            Console.WriteLine("warnings:");
-            foreach (var warning in report.Warnings)
-            {
-                Console.WriteLine($"  - {Redaction.RedactMac(warning)}");
-            }
-        }
-
-        Console.WriteLine($"redacted report: {Path.GetFullPath(Path.Combine("docs", "listening-xm6.json"))}");
-        Console.WriteLine($"full report: {Path.GetFullPath(Path.Combine("artifacts", "listening-xm6.full.json"))}");
+        PrintWarnings(report.Warnings);
+        PrintReportPaths(redacted, full);
 
         return report.ListeningMode?.Verified == true ? 0 : 1;
     }
@@ -568,17 +438,8 @@ internal static class Program
         var report = await new TandemGattSession().RunAsync(
             options.ToRequest(applyDsee: true));
 
-        WriteReport(
-            Path.Combine("artifacts", "dsee-xm6.full.json"),
-            JsonOutput.Serialize(report));
-        WriteReport(
-            Path.Combine("docs", "dsee-xm6.json"),
-            JsonOutput.SerializeRedacted(report));
-
-        Console.WriteLine($"status: {report.Status}");
-        Console.WriteLine($"message: {report.Message}");
-        Console.WriteLine($"model: {report.Handshake.Model ?? "not read"}");
-        Console.WriteLine($"firmware: {report.Handshake.Firmware ?? "not read"}");
+        var (redacted, full) = WriteSessionReports(report, "dsee-xm6");
+        PrintSessionSummary(report);
 
         if (report.Dsee is { } dsee)
         {
@@ -590,17 +451,8 @@ internal static class Program
             Console.WriteLine($"dseeResponse: {dsee.ResponseHex ?? "none"}");
         }
 
-        if (report.Warnings.Count > 0)
-        {
-            Console.WriteLine("warnings:");
-            foreach (var warning in report.Warnings)
-            {
-                Console.WriteLine($"  - {Redaction.RedactMac(warning)}");
-            }
-        }
-
-        Console.WriteLine($"redacted report: {Path.GetFullPath(Path.Combine("docs", "dsee-xm6.json"))}");
-        Console.WriteLine($"full report: {Path.GetFullPath(Path.Combine("artifacts", "dsee-xm6.full.json"))}");
+        PrintWarnings(report.Warnings);
+        PrintReportPaths(redacted, full);
 
         return report.Dsee?.Verified == true ? 0 : 1;
     }
@@ -845,6 +697,66 @@ internal static class Program
         }
 
         File.WriteAllText(fullPath, content);
+    }
+
+    private static (string Redacted, string Full) WriteSessionReports(
+        TandemSessionReport report,
+        string stem)
+    {
+        var redacted = Path.Combine("docs", $"{stem}.json");
+        var full = Path.Combine("artifacts", $"{stem}.full.json");
+        WriteReport(full, JsonOutput.Serialize(report));
+        WriteReport(redacted, JsonOutput.SerializeRedacted(report));
+        return (redacted, full);
+    }
+
+    private static void PrintSessionSummary(
+        TandemSessionReport report,
+        bool includeService = false)
+    {
+        Console.WriteLine($"status: {report.Status}");
+        Console.WriteLine($"message: {report.Message}");
+        if (includeService)
+        {
+            Console.WriteLine($"tandemServicePresent: {report.TandemServicePresent}");
+        }
+
+        Console.WriteLine($"model: {report.Handshake.Model ?? "not read"}");
+        Console.WriteLine($"firmware: {report.Handshake.Firmware ?? "not read"}");
+    }
+
+    private static void PrintWarnings(IReadOnlyList<string> warnings)
+    {
+        if (warnings.Count == 0)
+        {
+            return;
+        }
+
+        Console.WriteLine("warnings:");
+        foreach (var warning in warnings)
+        {
+            Console.WriteLine($"  - {Redaction.RedactMac(warning)}");
+        }
+    }
+
+    private static void PrintErrors(IReadOnlyList<string> errors)
+    {
+        if (errors.Count == 0)
+        {
+            return;
+        }
+
+        Console.WriteLine("errors:");
+        foreach (var error in errors)
+        {
+            Console.WriteLine($"  - {Redaction.RedactMac(error)}");
+        }
+    }
+
+    private static void PrintReportPaths(string redacted, string full)
+    {
+        Console.WriteLine($"redacted report: {Path.GetFullPath(redacted)}");
+        Console.WriteLine($"full report: {Path.GetFullPath(full)}");
     }
 }
 

@@ -294,18 +294,9 @@ public sealed class TandemGattSession
                 .ToList();
         }
 
-        if (request.CollectDiagnostics || request.QuerySnapshot)
+        if (request.CollectDiagnostics)
         {
-            await ReadDeviceTextAsync(
-                TandemDeviceInfoType.ModelName,
-                value => report.Handshake.Model = value,
-                report,
-                cancellationToken);
-            await ReadDeviceTextAsync(
-                TandemDeviceInfoType.FirmwareVersion,
-                value => report.Handshake.Firmware = value,
-                report,
-                cancellationToken);
+            await ReadIdentityAsync(report, cancellationToken);
         }
 
         _handshake = report.Handshake;
@@ -363,14 +354,24 @@ public sealed class TandemGattSession
             await QueryFeaturesAsync(report, cancellationToken);
         }
 
-        if (request.QuerySnapshot && report.Handshake.ProtocolVersion is not null)
+        var wantsSnapshot = request.QuerySnapshot
+            || request.QueryNoise
+            || request.QueryEq
+            || request.QueryBattery
+            || request.QueryMultipoint
+            || request.QueryAutoPowerOff
+            || request.QueryListening;
+        if (wantsSnapshot && report.Handshake.ProtocolVersion is not null)
         {
-            await QuerySnapshotAsync(report, cancellationToken);
+            await QuerySnapshotAsync(request, report, cancellationToken);
         }
 
-        if (request.QueryIndicators && report.Handshake.ProtocolVersion is not null)
+        var wantsIndicators = request.QuerySnapshot
+            || request.QueryIndicators
+            || request.QueryDsee;
+        if (wantsIndicators && report.Handshake.ProtocolVersion is not null)
         {
-            await QueryIndicatorsAsync(report, cancellationToken);
+            await QueryIndicatorsAsync(request, report, cancellationToken);
         }
 
         if (request.ApplyEq && report.Handshake.ProtocolVersion is not null)
@@ -1553,12 +1554,21 @@ public sealed class TandemGattSession
     }
 
     private async Task QueryIndicatorsAsync(
+        ProbeRequest request,
         TandemSessionReport report,
         CancellationToken cancellationToken)
     {
         var snapshot = report.Snapshot ??= new TandemDeviceSnapshot();
-        snapshot.Codec = await ReadCodecAsync(report, cancellationToken);
-        snapshot.Dsee = await ReadDseeStateAsync(report, cancellationToken);
+
+        if (request.QuerySnapshot || request.QueryIndicators)
+        {
+            snapshot.Codec = await ReadCodecAsync(report, cancellationToken);
+        }
+
+        if (request.QuerySnapshot || request.QueryIndicators || request.QueryDsee)
+        {
+            snapshot.Dsee = await ReadDseeStateAsync(report, cancellationToken);
+        }
     }
 
     private async Task<TandemAudioCodec?> ReadCodecAsync(
@@ -1756,43 +1766,13 @@ public sealed class TandemGattSession
             if (nc.Enabled && nc.Mode == TandemNcAsmMode.Nc)
             {
                 await ApplyNcAsmAsync(
-                    request with
-                    {
-                        ApplyNcAsm = true,
-                        NcAsmMode = TandemNcAsmMode.Asm,
-                        NcAsmEnabled = true,
-                        NcAsmLevel = nc.Level,
-                        NcAsmVoiceFocus = nc.VoiceFocus,
-                        NcAsmNoiseAdaptive = nc.NoiseAdaptive,
-                        NcAsmSensitivity = nc.Sensitivity,
-                        ApplyEq = false,
-                        ApplyMultipoint = false,
-                        ApplyAutoPowerOff = false,
-                        ApplyListeningMode = false,
-                        ApplyScene = false,
-                        Scene = null,
-                    },
+                    SceneNcRequest(request, nc, TandemNcAsmMode.Asm, enabled: true),
                     report,
                     cancellationToken);
             }
 
             await ApplyNcAsmAsync(
-                request with
-                {
-                    ApplyNcAsm = true,
-                    NcAsmMode = nc.Mode,
-                    NcAsmEnabled = nc.Enabled,
-                    NcAsmLevel = nc.Level,
-                    NcAsmVoiceFocus = nc.VoiceFocus,
-                    NcAsmNoiseAdaptive = nc.NoiseAdaptive,
-                    NcAsmSensitivity = nc.Sensitivity,
-                    ApplyEq = false,
-                    ApplyMultipoint = false,
-                    ApplyAutoPowerOff = false,
-                    ApplyListeningMode = false,
-                    ApplyScene = false,
-                    Scene = null,
-                },
+                SceneNcRequest(request, nc, nc.Mode, nc.Enabled),
                 report,
                 cancellationToken);
 
@@ -1812,15 +1792,8 @@ public sealed class TandemGattSession
             await ApplyEqAsync(
                 request with
                 {
-                    ApplyNcAsm = false,
-                    ApplyEq = true,
                     EqPreset = eq.Preset,
                     EqBands = eq.Preset == TandemEqPresetId.Custom ? bands : null,
-                    ApplyMultipoint = false,
-                    ApplyAutoPowerOff = false,
-                    ApplyListeningMode = false,
-                    ApplyScene = false,
-                    Scene = null,
                 },
                 report,
                 cancellationToken);
@@ -1838,15 +1811,8 @@ public sealed class TandemGattSession
             await ApplyListeningModeAsync(
                 request with
                 {
-                    ApplyNcAsm = false,
-                    ApplyEq = false,
-                    ApplyMultipoint = false,
-                    ApplyAutoPowerOff = false,
-                    ApplyListeningMode = true,
                     ListeningMode = listening.Mode,
                     BgmRoomSize = listening.RoomSize,
-                    ApplyScene = false,
-                    Scene = null,
                 },
                 report,
                 cancellationToken);
@@ -1860,62 +1826,130 @@ public sealed class TandemGattSession
         }
     }
 
+    private static ProbeRequest SceneNcRequest(
+        ProbeRequest request,
+        TandemSceneNcAsm nc,
+        TandemNcAsmMode mode,
+        bool enabled) =>
+        request with
+        {
+            NcAsmMode = mode,
+            NcAsmEnabled = enabled,
+            NcAsmLevel = nc.Level,
+            NcAsmVoiceFocus = nc.VoiceFocus,
+            NcAsmNoiseAdaptive = nc.NoiseAdaptive,
+            NcAsmSensitivity = nc.Sensitivity,
+        };
+
     private async Task QuerySnapshotAsync(
+        ProbeRequest request,
         TandemSessionReport report,
         CancellationToken cancellationToken)
     {
+        var full = request.QuerySnapshot;
         var snapshot = new TandemDeviceSnapshot();
         report.Snapshot = snapshot;
 
-        var ncAsm = await SendAndWaitAsync(
-            TandemV2Table1Messages.NcAsmGetParam(TandemNcAsmInquiredType.ModeNcAsmDualNcModeSwitchAndAsmSeamlessNa),
-            [
-                (byte)TandemV2Table1Command.NcAsmRetParam,
-                (byte)TandemV2Table1Command.NcAsmNtfyParam,
-            ],
-            report,
-            cancellationToken);
-        if (ncAsm is not null
-            && TandemV2Table1Messages.TryParseNcAsmState(ncAsm.Payload, out var state))
+        if (full)
         {
-            snapshot.NcAsm = state;
+            await ReadIdentityAsync(report, cancellationToken);
         }
 
-        var eq = await SendAndWaitAsync(
-            TandemV2Table1Messages.EqEbbGetParam(TandemEqEbbInquiredType.PresetEqAndErrorCode),
-            [(byte)TandemV2Table1Command.EqEbbRetParam],
-            report,
-            cancellationToken);
-        if (eq is not null
-            && TandemV2Table1Messages.TryParseEqParam(eq.Payload, out var preset, out var bands))
+        if (full || request.QueryNoise)
         {
-            snapshot.Eq = new TandemEqState
+            var ncAsm = await SendAndWaitAsync(
+                TandemV2Table1Messages.NcAsmGetParam(TandemNcAsmInquiredType.ModeNcAsmDualNcModeSwitchAndAsmSeamlessNa),
+                [
+                    (byte)TandemV2Table1Command.NcAsmRetParam,
+                    (byte)TandemV2Table1Command.NcAsmNtfyParam,
+                ],
+                report,
+                cancellationToken);
+            if (ncAsm is not null
+                && TandemV2Table1Messages.TryParseNcAsmState(ncAsm.Payload, out var state))
             {
-                Preset = preset,
-                Bands = bands,
-                RawHex = Convert.ToHexString(eq.Payload).ToLowerInvariant(),
-            };
+                snapshot.NcAsm = state;
+            }
         }
 
-        var battery = await SendAndWaitAsync(
-            TandemV2Table1Messages.PowerGetStatus(TandemPowerInquiredType.Battery),
-            [(byte)TandemV2Table1Command.PowerRetStatus],
-            report,
-            cancellationToken);
-        if (battery is { Payload.Length: >= 3 }
-            && battery.Payload[0] == (byte)TandemV2Table1Command.PowerRetStatus)
+        if (full || request.QueryEq)
         {
-            snapshot.BatteryPercent = battery.Payload[2];
-            snapshot.BatteryStatus = battery.Payload.Length > 3 ? battery.Payload[3] : null;
+            var eq = await SendAndWaitAsync(
+                TandemV2Table1Messages.EqEbbGetParam(TandemEqEbbInquiredType.PresetEqAndErrorCode),
+                [(byte)TandemV2Table1Command.EqEbbRetParam],
+                report,
+                cancellationToken);
+            if (eq is not null
+                && TandemV2Table1Messages.TryParseEqParam(eq.Payload, out var preset, out var bands))
+            {
+                snapshot.Eq = new TandemEqState
+                {
+                    Preset = preset,
+                    Bands = bands,
+                    RawHex = Convert.ToHexString(eq.Payload).ToLowerInvariant(),
+                };
+            }
         }
 
-        snapshot.MultipointEnabled = await ReadMultipointAsync(report, cancellationToken);
+        if (full || request.QueryBattery)
+        {
+            var battery = await SendAndWaitAsync(
+                TandemV2Table1Messages.PowerGetStatus(TandemPowerInquiredType.Battery),
+                [(byte)TandemV2Table1Command.PowerRetStatus],
+                report,
+                cancellationToken);
+            if (battery is { Payload.Length: >= 3 }
+                && battery.Payload[0] == (byte)TandemV2Table1Command.PowerRetStatus)
+            {
+                snapshot.BatteryPercent = battery.Payload[2];
+                snapshot.BatteryStatus = battery.Payload.Length > 3 ? battery.Payload[3] : null;
+            }
+        }
 
-        var autoPowerOff = await ReadAutoPowerOffSnapshotAsync(report, cancellationToken);
-        snapshot.AutoPowerOffElements = autoPowerOff.Elements;
-        snapshot.AutoPowerOff = autoPowerOff.State;
+        if (full || request.QueryMultipoint)
+        {
+            snapshot.MultipointEnabled = await ReadMultipointAsync(report, cancellationToken);
+        }
 
-        snapshot.ListeningMode = await ReadListeningModeAsync(report, cancellationToken);
+        if (full || request.QueryAutoPowerOff)
+        {
+            var autoPowerOff = await ReadAutoPowerOffSnapshotAsync(report, cancellationToken);
+            snapshot.AutoPowerOffElements = autoPowerOff.Elements;
+            snapshot.AutoPowerOff = autoPowerOff.State;
+        }
+
+        if (full || request.QueryListening)
+        {
+            snapshot.ListeningMode = await ReadListeningModeAsync(report, cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// Reads the model and firmware when the cached handshake does not have them
+    /// yet. The handshake object is shared with later reports, so a successful
+    /// read persists for the rest of the connection.
+    /// </summary>
+    private async Task ReadIdentityAsync(
+        TandemSessionReport report,
+        CancellationToken cancellationToken)
+    {
+        if (report.Handshake.Model is null)
+        {
+            await ReadDeviceTextAsync(
+                TandemDeviceInfoType.ModelName,
+                value => report.Handshake.Model = value,
+                report,
+                cancellationToken);
+        }
+
+        if (report.Handshake.Firmware is null)
+        {
+            await ReadDeviceTextAsync(
+                TandemDeviceInfoType.FirmwareVersion,
+                value => report.Handshake.Firmware = value,
+                report,
+                cancellationToken);
+        }
     }
 
     private async Task QueryFeaturesAsync(

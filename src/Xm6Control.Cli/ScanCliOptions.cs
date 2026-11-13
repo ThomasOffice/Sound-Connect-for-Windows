@@ -21,7 +21,7 @@ internal sealed class ScanCliOptions
                     options.ShowHelp = true;
                     return options;
                 case "--seconds":
-                    var value = NextValue(args, ref index, argument);
+                    var value = CliArguments.NextValue(args, ref index, argument);
                     if (!int.TryParse(value, out var seconds) || seconds is < 1 or > 120)
                     {
                         throw new ArgumentException("--seconds must be an integer from 1 to 120.");
@@ -30,10 +30,10 @@ internal sealed class ScanCliOptions
                     options.Seconds = seconds;
                     break;
                 case "--output":
-                    options.Output = NextValue(args, ref index, argument);
+                    options.Output = CliArguments.NextValue(args, ref index, argument);
                     break;
                 case "--full-output":
-                    options.FullOutput = NextValue(args, ref index, argument);
+                    options.FullOutput = CliArguments.NextValue(args, ref index, argument);
                     break;
                 default:
                     throw new ArgumentException($"Unknown scan argument: {argument}");
@@ -41,15 +41,5 @@ internal sealed class ScanCliOptions
         }
 
         return options;
-    }
-
-    private static string NextValue(string[] args, ref int index, string option)
-    {
-        if (index + 1 >= args.Length)
-        {
-            throw new ArgumentException($"{option} requires a value.");
-        }
-
-        return args[++index];
     }
 }

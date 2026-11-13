@@ -11,8 +11,16 @@ public sealed record ProbeRequest
     public string AddressType { get; init; } = "auto";
     public bool BootstrapTandem { get; init; }
     public bool QueryFeatures { get; init; }
+    /// <summary>Reads every snapshot field plus the codec and DSEE indicators.</summary>
     public bool QuerySnapshot { get; init; }
     public bool QueryIndicators { get; init; }
+    public bool QueryDsee { get; init; }
+    public bool QueryNoise { get; init; }
+    public bool QueryEq { get; init; }
+    public bool QueryBattery { get; init; }
+    public bool QueryMultipoint { get; init; }
+    public bool QueryAutoPowerOff { get; init; }
+    public bool QueryListening { get; init; }
     public bool CollectServices { get; init; } = true;
     public bool CollectDiagnostics { get; init; } = true;
     public bool ApplyEq { get; init; }

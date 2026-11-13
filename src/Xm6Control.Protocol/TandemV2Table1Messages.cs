@@ -37,13 +37,6 @@ public static class TandemV2Table1Messages
         (byte)second,
     ];
 
-    public static byte[] PowerSetOnOff(TandemPowerInquiredType type, bool on) =>
-    [
-        (byte)TandemV2Table1Command.PowerSetParam,
-        (byte)type,
-        (byte)(on ? TandemOnOffSettingValue.On : TandemOnOffSettingValue.Off),
-    ];
-
     public static byte[] AudioGetCapability(TandemAudioInquiredType type) =>
         [(byte)TandemV2Table1Command.AudioGetCapability, (byte)type];
 
@@ -100,8 +93,7 @@ public static class TandemV2Table1Messages
 
         var type = (TandemAudioInquiredType)payload[1];
         if (payload.Length != 4
-            || (payload[0] != (byte)TandemV2Table1Command.AudioRetParam
-                && payload[0] != (byte)TandemV2Table1Command.AudioNtfyParam)
+            || !IsAudioParamOrNtfy(payload[0])
             || (type != TandemAudioInquiredType.BgmMode
                 && type != TandemAudioInquiredType.BgmModeAndErrorCode))
         {
@@ -127,8 +119,7 @@ public static class TandemV2Table1Messages
         state = null!;
 
         if (payload.Length != 3
-            || (payload[0] != (byte)TandemV2Table1Command.AudioRetParam
-                && payload[0] != (byte)TandemV2Table1Command.AudioNtfyParam)
+            || !IsAudioParamOrNtfy(payload[0])
             || payload[1] != (byte)TandemAudioInquiredType.UpmixCinema)
         {
             return false;
@@ -151,8 +142,7 @@ public static class TandemV2Table1Messages
         item = TandemUpmixItemId.OutOfRange;
 
         if (payload.Length != 3
-            || (payload[0] != (byte)TandemV2Table1Command.AudioRetParam
-                && payload[0] != (byte)TandemV2Table1Command.AudioNtfyParam)
+            || !IsAudioParamOrNtfy(payload[0])
             || payload[1] != (byte)TandemAudioInquiredType.UpmixSeries)
         {
             return false;
@@ -204,14 +194,7 @@ public static class TandemV2Table1Messages
             return false;
         }
 
-        type = payload[2] switch
-        {
-            0 => TandemUpscalingType.DseeHx,
-            1 => TandemUpscalingType.Dsee,
-            2 => TandemUpscalingType.DseeHxAi,
-            3 => TandemUpscalingType.DseeUltimate,
-            _ => TandemUpscalingType.OutOfRange,
-        };
+        type = ParseUpscalingType(payload[2]);
         status = payload[3] switch
         {
             0 => TandemUpscalingEffectStatus.Off,
@@ -253,8 +236,7 @@ public static class TandemV2Table1Messages
         setting = TandemUpscalingSetting.OutOfRange;
 
         if (payload.Length != 3
-            || (payload[0] != (byte)TandemV2Table1Command.AudioRetParam
-                && payload[0] != (byte)TandemV2Table1Command.AudioNtfyParam)
+            || !IsAudioParamOrNtfy(payload[0])
             || payload[1] != (byte)TandemAudioInquiredType.Upscaling)
         {
             return false;
@@ -282,7 +264,12 @@ public static class TandemV2Table1Messages
             return false;
         }
 
-        type = payload[2] switch
+        type = ParseUpscalingType(payload[2]);
+        return type != TandemUpscalingType.OutOfRange;
+    }
+
+    private static TandemUpscalingType ParseUpscalingType(byte value) =>
+        value switch
         {
             0 => TandemUpscalingType.DseeHx,
             1 => TandemUpscalingType.Dsee,
@@ -290,8 +277,6 @@ public static class TandemV2Table1Messages
             3 => TandemUpscalingType.DseeUltimate,
             _ => TandemUpscalingType.OutOfRange,
         };
-        return type != TandemUpscalingType.OutOfRange;
-    }
 
     public static byte[] NcAsmGetCapability(TandemNcAsmInquiredType type) =>
         [(byte)TandemV2Table1Command.NcAsmGetCapability, (byte)type];
@@ -358,25 +343,6 @@ public static class TandemV2Table1Messages
         0,
     ];
 
-    public static byte[] EqEbbSetCustom(IReadOnlyList<byte> bands)
-    {
-        if (bands.Count > 255)
-        {
-            throw new ArgumentOutOfRangeException(nameof(bands));
-        }
-
-        var payload = new byte[3 + bands.Count];
-        payload[0] = (byte)TandemV2Table1Command.EqEbbSetParam;
-        payload[1] = (byte)TandemEqEbbInquiredType.CustomEq;
-        payload[2] = (byte)bands.Count;
-        for (var index = 0; index < bands.Count; index++)
-        {
-            payload[3 + index] = bands[index];
-        }
-
-        return payload;
-    }
-
     public static byte[] GeneralSettingGetCapability(TandemGsInquiredType type) =>
         [(byte)TandemV2Table1Command.GeneralSettingGetCapability, (byte)type];
 
@@ -392,14 +358,6 @@ public static class TandemV2Table1Messages
         (byte)type,
         (byte)TandemGsSettingType.BooleanType,
         (byte)(on ? TandemGsSettingValue.On : TandemGsSettingValue.Off),
-    ];
-
-    public static byte[] GeneralSettingSetList(TandemGsInquiredType type, byte value) =>
-    [
-        (byte)TandemV2Table1Command.GeneralSettingSetParam,
-        (byte)type,
-        (byte)TandemGsSettingType.ListType,
-        value,
     ];
 
     public static byte[] SystemGetStatus(TandemSystemInquiredType type) =>
@@ -930,24 +888,21 @@ public static class TandemV2Table1Messages
         }
 
         if (payload.Length == 4
-            && (payload[0] == (byte)TandemV2Table1Command.AudioRetParam
-                || payload[0] == (byte)TandemV2Table1Command.AudioNtfyParam)
+            && IsAudioParamOrNtfy(payload[0])
             && TryParseBgmState(payload, out var bgmState))
         {
             return $"bgm: {bgmState.OnOff} room={bgmState.RoomSize}";
         }
 
         if (payload.Length == 3
-            && (payload[0] == (byte)TandemV2Table1Command.AudioRetParam
-                || payload[0] == (byte)TandemV2Table1Command.AudioNtfyParam)
+            && IsAudioParamOrNtfy(payload[0])
             && TryParseCinemaState(payload, out var cinemaState))
         {
             return $"cinema: {cinemaState.OnOff}";
         }
 
         if (payload.Length == 3
-            && (payload[0] == (byte)TandemV2Table1Command.AudioRetParam
-                || payload[0] == (byte)TandemV2Table1Command.AudioNtfyParam)
+            && IsAudioParamOrNtfy(payload[0])
             && TryParseUpmixSeriesState(payload, out var upmixItem))
         {
             return $"upmix series: {upmixItem}";
@@ -993,6 +948,10 @@ public static class TandemV2Table1Messages
     private static bool IsAutoPowerOffType(byte type) =>
         type is (byte)TandemPowerInquiredType.AutoPowerOff
             or (byte)TandemPowerInquiredType.AutoPowerOffWearingDetection;
+
+    private static bool IsAudioParamOrNtfy(byte command) =>
+        command is (byte)TandemV2Table1Command.AudioRetParam
+            or (byte)TandemV2Table1Command.AudioNtfyParam;
 
     private static byte[] BuildWithValue(
         TandemV2Table1Command command,

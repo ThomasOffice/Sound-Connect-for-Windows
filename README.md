@@ -6,13 +6,16 @@ Windows 11 x64 本机控制 Sony WH-1000XM6 的桌面工具。
 
 ## 下载
 
-Windows x64 自包含版本请在 [Releases](https://github.com/ThomasOffice/Sound-Connect-for-Windows/releases) 下载：
+Windows x64 安装版或便携版请在 [Releases](https://github.com/ThomasOffice/Sound-Connect-for-Windows/releases) 下载：
 
 ```text
-Xm6Control-1.0.2-win-x64.zip
+Xm6Control-1.0.3-win-x64-setup.exe   安装版（所有用户，需要管理员）
+Xm6Control-1.0.3-win-x64.zip         便携版（解压即用）
 ```
 
-解压后运行：
+安装版会装到 `C:\Program Files\Sound Connect for Windows`，创建开始菜单快捷方式，并可从“应用和功能”卸载。卸载会保留 `%LOCALAPPDATA%\Xm6Control` 下的设置和情景。
+
+便携版解压后运行：
 
 ```text
 Xm6Control.App.exe
@@ -63,6 +66,20 @@ dotnet publish src/Xm6Control.App/Xm6Control.App.csproj `
 ```
 
 发布时会自动移除应用不会加载的 Windows App SDK AI/ML 与 Widgets 组件，以及中英文之外的语言资源：解压后约 168 MB，压缩后约 67 MB。
+
+生成便携 zip 和 exe 安装包（需要 Inno Setup 6）：
+
+```powershell
+pwsh packaging/build-installer.ps1
+```
+
+脚本会输出到 `artifacts/release`：
+
+```text
+Xm6Control-1.0.3-win-x64.zip
+Xm6Control-1.0.3-win-x64-setup.exe
+SHA256SUMS.txt
+```
 
 ## 说明
 

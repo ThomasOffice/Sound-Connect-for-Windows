@@ -8,6 +8,25 @@
     mc:Ignorable="d">
 
     <Grid x:Name="RootGrid">
+        <Grid.Resources>
+            <Style x:Key="CardBorderStyle" TargetType="Border">
+                <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
+                <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="8" />
+                <Setter Property="Padding" Value="18" />
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+            </Style>
+            <Style x:Key="NavigationIconStyle" TargetType="FontIcon">
+                <Setter Property="FontFamily" Value="{StaticResource SymbolThemeFontFamily}" />
+            </Style>
+            <Style x:Key="PageSubtitleTextBlockStyle" TargetType="TextBlock"
+                   BasedOn="{StaticResource BodyTextBlockStyle}">
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+            </Style>
+        </Grid.Resources>
+
         <NavigationView
             x:Name="Nav"
             PaneDisplayMode="Left"
@@ -17,31 +36,77 @@
             SelectionChanged="Navigation_SelectionChanged">
 
             <NavigationView.MenuItems>
-                <NavigationViewItem x:Name="OverviewNav" loc:Loc.Content="nav.overview" Tag="overview" Icon="Home" IsSelected="True" />
-                <NavigationViewItem loc:Loc.Content="nav.noise" Tag="noise" Icon="Audio" />
-                <NavigationViewItem loc:Loc.Content="nav.eq" Tag="eq" Icon="Audio" />
-                <NavigationViewItem loc:Loc.Content="nav.listening" Tag="listening" Icon="Audio" />
-                <NavigationViewItem loc:Loc.Content="nav.multipoint" Tag="multipoint" />
-                <NavigationViewItem loc:Loc.Content="nav.autopower" Tag="autopower" />
-                <NavigationViewItem loc:Loc.Content="nav.scenes" Tag="scenes" />
-                <NavigationViewItem loc:Loc.Content="nav.settings" Tag="settings" Icon="Setting" />
-                <NavigationViewItem loc:Loc.Content="nav.about" Tag="about" Icon="Help" />
+                <NavigationViewItem loc:Loc.Content="nav.overview" Tag="overview" IsSelected="True">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Style="{StaticResource NavigationIconStyle}" Glyph="&#xE80F;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem loc:Loc.Content="nav.noise" Tag="noise">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Style="{StaticResource NavigationIconStyle}" Glyph="&#xE767;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem loc:Loc.Content="nav.eq" Tag="eq">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Style="{StaticResource NavigationIconStyle}" Glyph="&#xE9E9;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem loc:Loc.Content="nav.listening" Tag="listening">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Style="{StaticResource NavigationIconStyle}" Glyph="&#xE7F6;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem loc:Loc.Content="nav.multipoint" Tag="multipoint">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Style="{StaticResource NavigationIconStyle}" Glyph="&#xE975;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem loc:Loc.Content="nav.autopower" Tag="autopower">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Style="{StaticResource NavigationIconStyle}" Glyph="&#xE7E8;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem loc:Loc.Content="nav.scenes" Tag="scenes">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Style="{StaticResource NavigationIconStyle}" Glyph="&#xE728;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem loc:Loc.Content="nav.settings" Tag="settings">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Style="{StaticResource NavigationIconStyle}" Glyph="&#xE713;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem loc:Loc.Content="nav.about" Tag="about">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Style="{StaticResource NavigationIconStyle}" Glyph="&#xE946;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
             </NavigationView.MenuItems>
 
-            <ScrollViewer HorizontalScrollBarVisibility="Auto"
-                          HorizontalContentAlignment="Left"
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                          HorizontalContentAlignment="Stretch"
                           VerticalContentAlignment="Top">
-                <StackPanel x:Name="ContentPanel" Padding="28" Spacing="16" MaxWidth="820" HorizontalAlignment="Left">
+                <StackPanel Padding="28" Spacing="16">
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="LastUpdatedText" Grid.Column="0" VerticalAlignment="Center"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <Button Grid.Column="1"
+                                loc:Loc.Content="overview.refresh" Click="Refresh_Click" />
+                    </Grid>
 
                     <InfoBar x:Name="StatusBar" IsOpen="False" IsClosable="True" />
 
                     <StackPanel x:Name="OverviewSection" Spacing="16">
                         <TextBlock loc:Loc.Text="page.overview.title" Style="{StaticResource TitleTextBlockStyle}" />
-                        <TextBlock loc:Loc.Text="page.overview.subtitle" Style="{StaticResource BodyTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <TextBlock loc:Loc.Text="page.overview.subtitle"
+                                   Style="{StaticResource PageSubtitleTextBlockStyle}" />
 
-                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                BorderThickness="1" CornerRadius="8" Padding="18">
+                        <Border Style="{StaticResource CardBorderStyle}">
                             <Grid ColumnSpacing="24" RowSpacing="10">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
@@ -75,22 +140,14 @@
                                 <TextBlock Grid.Row="5" Grid.Column="1" x:Name="DseeOverviewText" loc:Loc.Text="overview.unknown" />
                             </Grid>
                         </Border>
-
-                        <StackPanel Orientation="Horizontal" Spacing="10">
-                            <Button x:Name="RefreshButton" loc:Loc.Content="overview.refresh" Click="Refresh_Click" />
-                            <TextBlock x:Name="LastUpdatedText" VerticalAlignment="Center"
-                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                        </StackPanel>
                     </StackPanel>
 
                     <StackPanel x:Name="NoiseSection" Spacing="16" Visibility="Collapsed">
                         <TextBlock loc:Loc.Text="page.noise.title" Style="{StaticResource TitleTextBlockStyle}" />
-                        <TextBlock loc:Loc.Text="page.noise.subtitle" Style="{StaticResource BodyTextBlockStyle}"
-                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <TextBlock loc:Loc.Text="page.noise.subtitle"
+                                   Style="{StaticResource PageSubtitleTextBlockStyle}" />
 
-                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                BorderThickness="1" CornerRadius="8" Padding="18">
+                        <Border Style="{StaticResource CardBorderStyle}">
                             <StackPanel Spacing="14">
                                 <TextBlock x:Name="NoiseCurrentText" loc:Loc.Text="common.current.mode" TextWrapping="Wrap" Style="{StaticResource BodyStrongTextBlockStyle}" />
 
@@ -123,12 +180,10 @@
 
                     <StackPanel x:Name="EqSection" Spacing="16" Visibility="Collapsed">
                         <TextBlock loc:Loc.Text="page.eq.title" Style="{StaticResource TitleTextBlockStyle}" />
-                        <TextBlock loc:Loc.Text="page.eq.subtitle" Style="{StaticResource BodyTextBlockStyle}"
-                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <TextBlock loc:Loc.Text="page.eq.subtitle"
+                                   Style="{StaticResource PageSubtitleTextBlockStyle}" />
 
-                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                BorderThickness="1" CornerRadius="8" Padding="18">
+                        <Border Style="{StaticResource CardBorderStyle}">
                             <StackPanel Spacing="14">
                                 <TextBlock x:Name="EqCurrentText" loc:Loc.Text="common.current.eq" TextWrapping="Wrap" Style="{StaticResource BodyStrongTextBlockStyle}" />
                                 <ComboBox x:Name="EqPresetCombo" loc:Loc.Header="eq.preset" Width="260"
@@ -142,12 +197,10 @@
 
                     <StackPanel x:Name="ListeningSection" Spacing="16" Visibility="Collapsed">
                         <TextBlock loc:Loc.Text="page.listening.title" Style="{StaticResource TitleTextBlockStyle}" />
-                        <TextBlock loc:Loc.Text="page.listening.subtitle" Style="{StaticResource BodyTextBlockStyle}"
-                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <TextBlock loc:Loc.Text="page.listening.subtitle"
+                                   Style="{StaticResource PageSubtitleTextBlockStyle}" />
 
-                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                BorderThickness="1" CornerRadius="8" Padding="18">
+                        <Border Style="{StaticResource CardBorderStyle}">
                             <StackPanel Spacing="14">
                                 <TextBlock x:Name="ListeningCurrentText" loc:Loc.Text="common.current.mode"
                                            TextWrapping="Wrap" Style="{StaticResource BodyStrongTextBlockStyle}" />
@@ -164,11 +217,8 @@
                                 <ComboBox x:Name="BgmRoomCombo" loc:Loc.Header="listening.room"
                                           Width="260" DisplayMemberPath="Label" />
 
-                                <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <Button x:Name="ApplyListeningButton" loc:Loc.Content="button.apply.verify"
-                                            Click="ApplyListening_Click" />
-                                    <Button loc:Loc.Content="overview.refresh" Click="Refresh_Click" />
-                                </StackPanel>
+                                <Button x:Name="ApplyListeningButton" loc:Loc.Content="button.apply.verify"
+                                        Click="ApplyListening_Click" />
 
                                 <TextBlock TextWrapping="Wrap"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
@@ -177,9 +227,7 @@
                         </Border>
 
                         <Border x:Name="DseeBox" Visibility="Collapsed"
-                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                BorderThickness="1" CornerRadius="8" Padding="18">
+                                Style="{StaticResource CardBorderStyle}">
                             <StackPanel Spacing="12">
                                 <TextBlock loc:Loc.Text="dsee.title" Style="{StaticResource BodyStrongTextBlockStyle}" />
 
@@ -198,12 +246,10 @@
 
                     <StackPanel x:Name="MultipointSection" Spacing="16" Visibility="Collapsed">
                         <TextBlock loc:Loc.Text="page.multipoint.title" Style="{StaticResource TitleTextBlockStyle}" />
-                        <TextBlock loc:Loc.Text="page.multipoint.subtitle" Style="{StaticResource BodyTextBlockStyle}"
-                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <TextBlock loc:Loc.Text="page.multipoint.subtitle"
+                                   Style="{StaticResource PageSubtitleTextBlockStyle}" />
 
-                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                BorderThickness="1" CornerRadius="8" Padding="18">
+                        <Border Style="{StaticResource CardBorderStyle}">
                             <StackPanel Spacing="14">
                                 <TextBlock x:Name="MultipointStateText" loc:Loc.Text="common.current.state"
                                            TextWrapping="Wrap" Style="{StaticResource BodyStrongTextBlockStyle}" />
@@ -211,11 +257,8 @@
                                 <ToggleSwitch x:Name="MultipointToggle" loc:Loc.Header="multipoint.label"
                                               loc:Loc.OnContent="toggle.on" loc:Loc.OffContent="toggle.off" />
 
-                                <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <Button x:Name="ApplyMultipointButton" loc:Loc.Content="button.apply.verify"
-                                            Click="ApplyMultipoint_Click" />
-                                    <Button loc:Loc.Content="overview.refresh" Click="Refresh_Click" />
-                                </StackPanel>
+                                <Button x:Name="ApplyMultipointButton" loc:Loc.Content="button.apply.verify"
+                                        Click="ApplyMultipoint_Click" />
 
                                 <TextBlock TextWrapping="Wrap"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
@@ -226,12 +269,10 @@
 
                     <StackPanel x:Name="AutoPowerSection" Spacing="16" Visibility="Collapsed">
                         <TextBlock loc:Loc.Text="page.autopower.title" Style="{StaticResource TitleTextBlockStyle}" />
-                        <TextBlock loc:Loc.Text="page.autopower.subtitle" Style="{StaticResource BodyTextBlockStyle}"
-                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <TextBlock loc:Loc.Text="page.autopower.subtitle"
+                                   Style="{StaticResource PageSubtitleTextBlockStyle}" />
 
-                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                BorderThickness="1" CornerRadius="8" Padding="18">
+                        <Border Style="{StaticResource CardBorderStyle}">
                             <StackPanel Spacing="14">
                                 <TextBlock x:Name="AutoPowerStateText" loc:Loc.Text="common.current.state"
                                            TextWrapping="Wrap" Style="{StaticResource BodyStrongTextBlockStyle}" />
@@ -239,11 +280,8 @@
                                 <ComboBox x:Name="AutoPowerCombo" loc:Loc.Header="autopower.label"
                                           Width="260" DisplayMemberPath="Label" />
 
-                                <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <Button x:Name="ApplyAutoPowerButton" loc:Loc.Content="button.apply.verify"
-                                            Click="ApplyAutoPower_Click" />
-                                    <Button loc:Loc.Content="overview.refresh" Click="Refresh_Click" />
-                                </StackPanel>
+                                <Button x:Name="ApplyAutoPowerButton" loc:Loc.Content="button.apply.verify"
+                                        Click="ApplyAutoPower_Click" />
 
                                 <TextBlock TextWrapping="Wrap"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
@@ -255,17 +293,14 @@
                     <StackPanel x:Name="ScenesSection" Spacing="16" Visibility="Collapsed">
                         <TextBlock loc:Loc.Text="page.scenes.title" Style="{StaticResource TitleTextBlockStyle}" />
                         <TextBlock loc:Loc.Text="page.scenes.subtitle"
-                                   Style="{StaticResource BodyTextBlockStyle}"
-                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                   Style="{StaticResource PageSubtitleTextBlockStyle}" />
 
-                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                BorderThickness="1" CornerRadius="8" Padding="18">
+                        <Border Style="{StaticResource CardBorderStyle}">
                             <StackPanel Spacing="12">
                                 <TextBlock loc:Loc.Text="scenes.new" Style="{StaticResource BodyStrongTextBlockStyle}" />
                                 <TextBox x:Name="SceneNameBox" loc:Loc.Header="scenes.name" Width="360"
                                          loc:Loc.Placeholder="scenes.name.placeholder" />
-                                <Button x:Name="CaptureSceneButton" loc:Loc.Content="scenes.capture"
+                                <Button loc:Loc.Content="scenes.capture"
                                         Click="CaptureScene_Click" />
                                 <TextBlock TextWrapping="Wrap"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
@@ -273,12 +308,11 @@
                             </StackPanel>
                         </Border>
 
-                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                BorderThickness="1" CornerRadius="8" Padding="18">
+                        <Border Style="{StaticResource CardBorderStyle}">
                             <StackPanel Spacing="10">
                                 <TextBlock loc:Loc.Text="scenes.saved" Style="{StaticResource BodyStrongTextBlockStyle}" />
                                 <TextBlock x:Name="NoScenesText" loc:Loc.Text="scenes.empty"
+                                           TextWrapping="Wrap"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 <StackPanel x:Name="SceneListPanel" Spacing="8" />
                             </StackPanel>
@@ -288,12 +322,9 @@
                     <StackPanel x:Name="SettingsSection" Spacing="16" Visibility="Collapsed">
                         <TextBlock loc:Loc.Text="page.settings.title" Style="{StaticResource TitleTextBlockStyle}" />
                         <TextBlock loc:Loc.Text="page.settings.subtitle"
-                                   Style="{StaticResource BodyTextBlockStyle}"
-                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                   Style="{StaticResource PageSubtitleTextBlockStyle}" />
 
-                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                BorderThickness="1" CornerRadius="8" Padding="18">
+                        <Border Style="{StaticResource CardBorderStyle}">
                             <StackPanel Spacing="14">
                                 <TextBlock loc:Loc.Text="settings.startup" Style="{StaticResource BodyStrongTextBlockStyle}" />
                                 <ToggleSwitch x:Name="LaunchOnStartupToggle" loc:Loc.Header="settings.launch"
@@ -311,9 +342,7 @@
                             </StackPanel>
                         </Border>
 
-                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                BorderThickness="1" CornerRadius="8" Padding="18">
+                        <Border Style="{StaticResource CardBorderStyle}">
                             <StackPanel Spacing="14">
                                 <TextBlock loc:Loc.Text="settings.window" Style="{StaticResource BodyStrongTextBlockStyle}" />
                                 <ToggleSwitch x:Name="RememberWindowToggle" loc:Loc.Header="settings.rememberwindow"
@@ -321,12 +350,12 @@
                                               Toggled="SettingsToggle_Changed" />
                                 <TextBlock x:Name="LastSectionText" TextWrapping="Wrap"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <Button loc:Loc.Content="settings.resetwindow"
+                                        Click="ResetWindow_Click" />
                             </StackPanel>
                         </Border>
 
-                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                BorderThickness="1" CornerRadius="8" Padding="18">
+                        <Border Style="{StaticResource CardBorderStyle}">
                             <StackPanel Spacing="14">
                                 <TextBlock loc:Loc.Text="settings.appearance" Style="{StaticResource BodyStrongTextBlockStyle}" />
                                 <ComboBox x:Name="ThemeCombo" loc:Loc.Header="settings.theme" Width="260"
@@ -341,9 +370,7 @@
                             </StackPanel>
                         </Border>
 
-                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                BorderThickness="1" CornerRadius="8" Padding="18">
+                        <Border Style="{StaticResource CardBorderStyle}">
                             <StackPanel Spacing="14">
                                 <TextBlock loc:Loc.Text="settings.tray" Style="{StaticResource BodyStrongTextBlockStyle}" />
                                 <ToggleSwitch x:Name="TrayShowStatusToggle" loc:Loc.Header="settings.tray.showstatus"
@@ -355,9 +382,7 @@
                             </StackPanel>
                         </Border>
 
-                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                BorderThickness="1" CornerRadius="8" Padding="18">
+                        <Border Style="{StaticResource CardBorderStyle}">
                             <StackPanel Spacing="14">
                                 <TextBlock loc:Loc.Text="settings.refresh" Style="{StaticResource BodyStrongTextBlockStyle}" />
                                 <ComboBox x:Name="AutoRefreshCombo" loc:Loc.Header="settings.autorefresh" Width="260"
@@ -372,9 +397,7 @@
                             </StackPanel>
                         </Border>
 
-                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                BorderThickness="1" CornerRadius="8" Padding="18">
+                        <Border Style="{StaticResource CardBorderStyle}">
                             <StackPanel Spacing="14">
                                 <TextBlock loc:Loc.Text="settings.device" Style="{StaticResource BodyStrongTextBlockStyle}" />
                                 <TextBox x:Name="DeviceNameBox" loc:Loc.Header="settings.device.name" Width="360"
@@ -388,9 +411,7 @@
                             </StackPanel>
                         </Border>
 
-                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                BorderThickness="1" CornerRadius="8" Padding="18">
+                        <Border Style="{StaticResource CardBorderStyle}">
                             <StackPanel Spacing="14">
                                 <TextBlock loc:Loc.Text="settings.close" Style="{StaticResource BodyStrongTextBlockStyle}" />
                                 <RadioButtons x:Name="CloseBehaviorRadio"
@@ -407,15 +428,13 @@
 
                     <StackPanel x:Name="AboutSection" Spacing="16" Visibility="Collapsed">
                         <TextBlock loc:Loc.Text="page.about.title" Style="{StaticResource TitleTextBlockStyle}" />
-                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                BorderThickness="1" CornerRadius="8" Padding="18">
+                        <Border Style="{StaticResource CardBorderStyle}">
                             <StackPanel Spacing="10">
                                 <TextBlock loc:Loc.Text="about.name" Style="{StaticResource BodyStrongTextBlockStyle}" />
                                 <TextBlock loc:Loc.Text="about.version" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 <TextBlock TextWrapping="Wrap"
                                            loc:Loc.Text="about.body" />
-                                <TextBlock loc:Loc.Text="about.local"
+                                <TextBlock loc:Loc.Text="about.local" TextWrapping="Wrap"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 <TextBlock loc:Loc.Text="about.links" />
                                 <HyperlinkButton Content="GitHub - ThomasOffice/Sound-Connect-for-Windows"

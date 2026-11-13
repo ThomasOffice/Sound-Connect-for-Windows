@@ -67,11 +67,6 @@ internal sealed class TrayIcon : IDisposable
     /// <summary>What a single left click does. Double click always opens the window.</summary>
     public TrayClickAction ClickAction { get; set; } = TrayClickAction.OpenWindow;
 
-    public void SetClickAction(TrayClickAction action)
-    {
-        ClickAction = action;
-    }
-
     public void UpdateTooltip(string text)
     {
         if (!_iconAdded || _window == IntPtr.Zero)

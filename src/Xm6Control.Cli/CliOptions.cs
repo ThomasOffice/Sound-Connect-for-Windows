@@ -147,13 +147,13 @@ internal sealed class CliOptions
                     options.ShowHelp = true;
                     return options;
                 case "--name":
-                    options.Name = NextValue(args, ref index, argument);
+                    options.Name = CliArguments.NextValue(args, ref index, argument);
                     break;
                 case "--address":
-                    options.Address = NextValue(args, ref index, argument);
+                    options.Address = CliArguments.NextValue(args, ref index, argument);
                     break;
                 case "--transport":
-                    options.Transport = NextValue(args, ref index, argument).ToLowerInvariant();
+                    options.Transport = CliArguments.NextValue(args, ref index, argument).ToLowerInvariant();
                     if (options.Transport is not ("auto" or "ble" or "rfcomm"))
                     {
                         throw new ArgumentException("--transport must be auto, ble, or rfcomm.");
@@ -161,7 +161,7 @@ internal sealed class CliOptions
 
                     break;
                 case "--address-type":
-                    options.AddressType = NextValue(args, ref index, argument).ToLowerInvariant();
+                    options.AddressType = CliArguments.NextValue(args, ref index, argument).ToLowerInvariant();
                     if (options.AddressType is not ("auto" or "public" or "random"))
                     {
                         throw new ArgumentException("--address-type must be auto, public, or random.");
@@ -175,13 +175,13 @@ internal sealed class CliOptions
                     options.Confirmed = true;
                     break;
                 case "--preset":
-                    options.EqPreset = ParsePreset(NextValue(args, ref index, argument));
+                    options.EqPreset = ParsePreset(CliArguments.NextValue(args, ref index, argument));
                     break;
                 case "--bands":
-                    options.EqBands = ParseBands(NextValue(args, ref index, argument));
+                    options.EqBands = ParseBands(CliArguments.NextValue(args, ref index, argument));
                     break;
                 case "--mode":
-                    var modeValue = NextValue(args, ref index, argument);
+                    var modeValue = CliArguments.NextValue(args, ref index, argument);
                     if (modeValue.Equals("off", StringComparison.OrdinalIgnoreCase))
                     {
                         options.AncEnabled = false;
@@ -195,7 +195,7 @@ internal sealed class CliOptions
 
                     break;
                 case "--level":
-                    if (!byte.TryParse(NextValue(args, ref index, argument), out var level)
+                    if (!byte.TryParse(CliArguments.NextValue(args, ref index, argument), out var level)
                         || level is < 1 or > 20)
                     {
                         throw new ArgumentException("--level must be an integer from 1 to 20.");
@@ -205,35 +205,35 @@ internal sealed class CliOptions
                     break;
                 case "--noise-adaptive":
                     options.AncNoiseAdaptive = ParseOnOff(
-                        NextValue(args, ref index, argument),
+                        CliArguments.NextValue(args, ref index, argument),
                         "--noise-adaptive");
                     break;
                 case "--voice-focus":
                     options.AncVoiceFocus = ParseOnOff(
-                        NextValue(args, ref index, argument),
+                        CliArguments.NextValue(args, ref index, argument),
                         "--voice-focus");
                     break;
                 case "--sensitivity":
                     options.AncSensitivity = ParseSensitivity(
-                        NextValue(args, ref index, argument));
+                        CliArguments.NextValue(args, ref index, argument));
                     break;
                 case "--multipoint":
-                    options.MultipointEnabled = ParseMultipoint(NextValue(args, ref index, argument));
+                    options.MultipointEnabled = ParseMultipoint(CliArguments.NextValue(args, ref index, argument));
                     break;
                 case "--autopower":
-                    options.AutoPowerOffElement = ParseAutoPowerOff(NextValue(args, ref index, argument));
+                    options.AutoPowerOffElement = ParseAutoPowerOff(CliArguments.NextValue(args, ref index, argument));
                     break;
                 case "--listening":
-                    options.ListeningMode = ParseListeningMode(NextValue(args, ref index, argument));
+                    options.ListeningMode = ParseListeningMode(CliArguments.NextValue(args, ref index, argument));
                     break;
                 case "--room":
-                    options.BgmRoomSize = ParseRoomSize(NextValue(args, ref index, argument));
+                    options.BgmRoomSize = ParseRoomSize(CliArguments.NextValue(args, ref index, argument));
                     break;
                 case "--dsee":
-                    options.DseeAuto = ParseDsee(NextValue(args, ref index, argument));
+                    options.DseeAuto = ParseDsee(CliArguments.NextValue(args, ref index, argument));
                     break;
                 case "--wait":
-                    var wait = NextValue(args, ref index, argument);
+                    var wait = CliArguments.NextValue(args, ref index, argument);
                     if (!int.TryParse(wait, out var waitMs) || waitMs < 0 || waitMs > 60_000)
                     {
                         throw new ArgumentException("--wait must be an integer from 0 to 60000.");
@@ -242,10 +242,10 @@ internal sealed class CliOptions
                     options.WaitMs = waitMs;
                     break;
                 case "--output":
-                    options.Output = NextValue(args, ref index, argument);
+                    options.Output = CliArguments.NextValue(args, ref index, argument);
                     break;
                 case "--full-output":
-                    options.FullOutput = NextValue(args, ref index, argument);
+                    options.FullOutput = CliArguments.NextValue(args, ref index, argument);
                     break;
                 default:
                     throw new ArgumentException($"Unknown argument: {argument}");
@@ -374,16 +374,6 @@ internal sealed class CliOptions
         }
 
         return bands;
-    }
-
-    private static string NextValue(string[] args, ref int index, string option)
-    {
-        if (index + 1 >= args.Length)
-        {
-            throw new ArgumentException($"{option} requires a value.");
-        }
-
-        return args[++index];
     }
 }
 
